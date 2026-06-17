@@ -1,0 +1,739 @@
+C330
+METAL PLATE
+EMBOSSER
+
+OPERATOR MANUAL
+Revision 1.0
+
+Important: the technical information contained in this manual is property of
+Matica Fintec S.p.A. and is secured by copyright.
+The terms of the license define and specify permitted uses and other
+limitations.
+Reproduction of any part of this manual, in any form, is forbidden without
+the explicit written permission of Matica Fintec S.p.A.
+Technical information contained in the present manual is subject to change
+without notice.
+If not otherwise specified, any reference to companies, names, dates and
+addresses is purely incidental and is only intended to illustrate the use of the
+Matica Fintec S.p.A. product.
+Every care has been taken in the collection and verification of the
+documentation inserted in this manual; nevertheless, Matica Fintec S.p.A.
+cannot assume any responsibility deriving from its use.
+
+Copyright © 2020 Matica Fintec SpA
+All rights reserved
+Published by Matica Fintec SpA
+
+Printed in Italy
+Issue: June 2020
+Revision 1.0
+
+Matica Fintec SpA
+vicolo Omar, 33
+20862 – Galliate (NO)
+ITALY
+Phone +39.0321.1828601
+Fax +39. 0321.1828690
+
+E-mail: tcc@maticafintec.com
+Web: http://www.maticafintec.com
+
+C330 Operator Manual
+
+Ver. 1.0
+
+Page 2/16
+
+Contents
+1.
+
+INTRODUCTION .......................................................................................................................................... 4
+1.1. Packing list........................................................................................................................................... 4
+1.2. Installation .......................................................................................................................................... 4
+1.3. Console................................................................................................................................................ 5
+1.4. Configuration ...................................................................................................................................... 5
+2. ADJUSTABLE FEEDER .................................................................................................................................. 6
+3. EMBOSSER .................................................................................................................................................. 7
+4. UNLOADER ................................................................................................................................................. 7
+5. Power-on the C330..................................................................................................................................... 8
+5.1. Working modality................................................................................................................................ 8
+5.2. Error condition .................................................................................................................................... 8
+6. Connect to PC and install the Generic Printer Driver ................................................................................. 9
+6.1. Install COM PORT driver...................................................................................................................... 9
+6.2. Install Generic printer driver (Windows 10) ....................................................................................... 9
+7. Embossing Layout Format ........................................................................................................................ 11
+7.1. Embossing Format definition ............................................................................................................ 11
+7.2. Motors Steps Ratio............................................................................................................................ 11
+7.3. Sample Embossing Format ................................................................................................................ 11
+7.4. How to measure the line coordinate ................................................................................................ 11
+7.5. Format Header .................................................................................................................................. 12
+7.6. Format Line Definition ...................................................................................................................... 13
+8. Print Plates using Notepad ....................................................................................................................... 14
+9. ERROR LIST ............................................................................................................................................... 15
+
+C330 Operator Manual
+
+Ver. 1.0
+
+Page 3/16
+
+1.
+
+INTRODUCTION
+
+1.1.
+
+Packing list
+The machine is delivered in a cardboard box.
+
+
+
+NOTE: move the machine always in two persons.
+Machine dimension: 61 x 43 x 25 cm
+Machine weight: 29 Kg
+1. Open the box and check the packing list:
+• Power cord
+• USB cable
+• USB Pen Drive
+2. Remove the top cushion
+3. Put the machine on a table
+
+1.2.
+
+Installation
+•
+
+Verify that the voltage marked on the machine label corresponds with your country
+voltage supply.
+
+C330 Operator Manual
+
+Ver. 1.0
+
+Page 4/16
+
+•
+•
+•
+
+Connect the power cord.
+Connect the USB cable
+Power on the machine.
+
+Main Switch
+
+USB Port
+
+Fuse Box
+
+Power Cord
+PS/2 Port
+
+1.3.
+
+Console
+The C330 console is made by:
+1. LCD display (2 lines per 40 characters)
+2. Key Clear used to clear the error condition
+
+1.4.
+
+Configuration
+C330 is provided with the following features:
+•
+•
+•
+
+Adjustable feeder
+Embosser
+Unloader
+
+C330 Operator Manual
+
+Ver. 1.0
+
+Page 5/16
+
+2.
+
+ADJUSTABLE FEEDER
+
+C330 is provided with an adjustable feeder.
+
+The feeder height is 95 mm, it has the capacity of 190 plates (0,5 mm thickness) and it can manage
+different thickness from 0,3 mm to 0,8 mm. The plate dimension can be changed unscrewing the
+black knob for X-axis or moving the two plate guides for Y-axis. The minimum dimension for a plate
+is 50 x 20 mm and the maximum one is 90 x 60 mm.
+Maximum plate size
+
+Minimum plate size
+
+60 mm
+
+20 mm
+4 mm no embossing area
+50 mm
+4 mm no embossing area
+90 mm
+
+C330 Operator Manual
+
+Ver. 1.0
+
+Page 6/16
+
+3.
+
+EMBOSSER
+
+C330 is provided with fixed embosser module as standard configuration and uses embossing drum
+with 60 characters.
+
+The embossing area is 80 x 56 mm, leaving 4 mm from the bottom of the plate for the clamp grip.
+
+4.
+
+UNLOADER
+
+C330 is provided with a side eject unloading module, the plate is stacked in the output box.
+
+C330 Operator Manual
+
+Ver. 1.0
+
+Page 7/16
+
+5.
+
+Power-on the C330
+
+Before power on the machine check the top cover is closed.
+If cover is open the machine do not start, and if the cover is open during the working modality all the
+movements will be immediately STOP and a COVER OPEN message will be show on display.
+Machine operator ONLY with cover closed.
+Powering on the machine, the LCD display will show:
+POWER-ON
+C330 Ver. C-x-xxx
+PRESS CLEAR or ESC to CONTINUE
+
+Press CLEAR button to start the INITIALIZATION cycle that will homing (restore) the Punch, X, Y and Drum
+mechanism; and execute and eject cycle to eject the plate in the clamp and to open the clamp to then be
+ready to emboss plates.
+During the initialization cycle the display show the Protocol and the baud rate configured
+INITIALIZATION
+
+Prot:Xon-Xoff Baud:57600
+
+At the end will be show the machine name and the READY status, and the total counter of plates produced.
+C330 METAL EMBOSSER BY MATICA FINTEC -ITALY
+READY
+Counter:00000100
+
+5.1.
+
+Working modality
+
+During working the display will show FEEDING, EMBOSSING and EJECTING to indicate the current cycle in
+process.
+
+5.2.
+
+Error condition
+
+In case of error the display will show the error number and the message:
+Exx
+
+FEEDER EMPTY
+PRESS CLEAR or ESC to CONTINUE
+
+•
+•
+•
+
+Open the cover and remove the cause of the error
+Close the cover
+Press CLEAR button to continue the process
+
+•
+
+In case of feeding error, the machine will keep retry until the plate will be correctly loaded and
+embossing will start.
+In case of error during the embossing cycle the plate will be eject and NOT DUPLICATED.
+
+•
+
+C330 Operator Manual
+
+Ver. 1.0
+
+Page 8/16
+
+6.
+
+Connect to PC and install the Generic Printer Driver
+
+6.1.
+
+Install COM PORT driver
+
+Connecting the USB cable to PC and power on the machine.
+Windows automatically detect the new COM and install the
+proper FTDI driver.
+Use Device Manager to check the COMxx number assigned.
+•
+•
+•
+
+Be sure the COMxx is installed
+If the COM is not installed, then install using the file
+C:\MATICA\...\Installation Files\USB2COM FTDI VCP Diver CDM21228_Setup
+Remember the COMxx number we will need to install the
+Generic printer driver.
+
+On your PC Windows will sign and COMxx number that will be
+keep the same changing USB plugs on your PC. So, you don’t
+need to remember in which USB you plug the first time the machine.
+If you connect another machine (different SN) Windows will assign a new COMxx number.
+Via Advance PORT configuration is possible to change the COMxx number
+
+6.2.
+
+Install Generic printer driver (Windows 10)
+
+The C330 can be easily managed via printer driver, like a standard printer, sending text to emboss using a
+very intuitive editing like Notepad or Word.
+
+1. Go to Printers & scanners
+2. Add a printer
+wait windows to search for new printers
+when done go to the end of the list and
+3. Select “The printer that I want isn’t listed”
+4. Add Printer
+5. Select “Add a local printer”
+
+C330 Operator Manual
+
+Ver. 1.0
+
+Page 9/16
+
+6. Choose a printer port
+7. Select the COMxx of the machine
+
+8. Install the printer driver
+9. Select
+o
+
+Manufacturer → Generic
+
+o
+
+Printers → Generic / Text Only
+
+10. Give a name at the printer
+
+11. Configure the COM port in the printer driver
+12. Go to C330 Properties (or the name you define)
+13. Go to COMxx Properties and select:
+o
+
+Bits per second → 57600
+
+o
+
+Flow control → Xon / Xoff
+
+We are now ready to produce plates.
+note: Printer driver is normally hold the COMxx in exclusive,
+blocking other application (like diagnostic tool) to access the
+machine. To FREE the COMxx simply asssing the printer (C330) to FILE.
+
+C330 Operator Manual
+
+Ver. 1.0
+
+Page 10/16
+
+7.
+
+Embossing Layout Format
+
+7.1.
+
+Embossing Format definition
+
+The Embossing Format allows to define the following parameters for each line:
+• Plate size
+• X and Y line coordinate positions
+• Font type
+• Character spacing
+Format can be up to 15 lines x 32 characters (columns).
+Up to 3 Formats (from 0 to 2) can be store in the memory.
+
+7.2.
+
+Motors Steps Ratio
+
+Creating the format is good to know the step ratio of each motor:
+•
+•
+•
+•
+
+7.3.
+
+→ 1 mm = 11 steps
+→ 1 mm = 8 steps
+→ 1 char = 40 steps
+→ 1 mm = 24 steps
+
+Motor X step = 0,0907 mm (1/280 inch)
+Motor Y step = 0,125 mm
+Motor Drum = 2400 steps rotation
+Motor Feeder step = 0.041 mm
+
+Sample Embossing Format
+
+This is a sample of embossing format:
+<]F0 Y540 SX860 U0
+Y200 X100 F0 CI10
+Y300 X155 F0 CI10 >
+
+7.4.
+
+How to measure the line coordinate
+
+C330 Operator Manual
+
+Ver. 1.0
+
+Page 11/16
+
+7.5.
+
+Format Header
+
+]
+
+Format Selector
+
+F0
+
+Format Number
+(mandatory)
+The format MUST BEGIN with Fn (n=0 to 3)
+
+FN=name
+
+Format Name (8 digits) (non-mandatory)
+The format name can be up to 8 digits. NO SPACES are allowed
+
+SYxxx
+
+Set the plate vertical size in 10th mm
+if not specified will be used the default value in the settings (SY540)
+
+SXxxx
+
+Set the plate horizontal size 10th mm
+if not specified will be used the default value in the settings (SX860)
+
+Ux
+
+Unit of Measure
+U0
+= 10th mm
+U1
+= 100th inch
+U2
+= 1000th inch
+U3
+= Motor Step
+if not specified will be used the default value in the settings (U0 =mm/10)
+
+C330 Operator Manual
+
+Ver. 1.0
+
+Page 12/16
+
+7.6.
+
+Format Line Definition
+
+N=name
+
+Line Name (7 digits)
+The name can be up to 7 digits. NO SPACES are allowed
+The name is show using the off-line keyboard modality. For on-line use the name is not need.
+
+Ynnn
+
+Vertical Coordinate
+(mandatory)
+Set the embossing field position measured from the top edge of metal plate to the bottom
+edge of the character. The nnn value can be up to 4 digits and it is expressed in the Unit-ofMeasure defined.
+ NOTE: if the plate size (SYxxx) is not correct, the coordinate Ynnn will be wrong.
+
+Xnnn
+
+Horizontal Coordinate
+(mandatory)
+Set the embossing field position measured from the left edge of metal plate to the left edge
+of the character. The nnn value can be up to 4 digits and it is expressed in the Unit-ofMeasure defined.
+ note: “Y100 X100” or “X100 Y100” are both accepted.
+
+Fn
+
+Font Type
+Set the type of character to emboss:
+F0
+= Font 0
+F1
+= Font 1
+If not specified will be used the value of previous line. Default is F0.
+
+CInn
+
+Characters per Inch (cpi)
+Set the space between characters:
+CI10
+= 10 characters per inch
+CI8
+= 8 characters per inch
+If not specified it will be used the same value of previous line. Default is CI10.
+
+CSnn
+
+Character Spacing
+(alternative of CI parameter in case of specific char spacing)
+Set the space between characters in number of steps:
+CS28
+= 10 cpi standard for Simplex 2
+CS35
+= 8 cpi used for USA BLOCK
+
+To facilitate the editing SPACE and CRLF are transparent and can be freely used.
+The following 2 formats are both accepted
+<]F0 Y540SX860U0 Y200X100F0CI10 Y300X155F0CI10
+
+>
+
+<]F0 Y540 SX860 U0
+Y200 X100 F0 CI10
+Y300 X155 F0 CI10 >
+
+C330 Operator Manual
+
+Ver. 1.0
+
+Page 13/16
+
+8.
+
+Print Plates using Notepad
+
+Create a new .TXT file and edit using Notepad.
+Do not use Notepad++ because don’t allow to set the page margin and add the lines number.
+<C330 METAL EMBOSSER
+MATICA FINTEC ITALY
+1234567890 >
+Go to File\Page Setup and set ALL the
+margins at 0.
+This to avoid having extra spaces on left
+side that will alter the X position.
+This is a Notepad local setting and is
+need just one time because Notepad
+will save for next time.
+
+Now Print on C330 printer.
+Plate will start feeding and the above text will be embossed on the plate using the format 0 layout saved
+inside the C330 memory.
+The embossing text the machine will use start from the symbol “<” and end with the symbol “>”.
+Data above the start-embossing “<” and after the end-embossing “>” are discharged.
+We now set the embossing format layout editing:
+<]F0 U0 SY540SX860
+Y300X100 CI10
+Y350X100 CI10
+Y400X100 >
+<C330 METAL EMBOSSER
+MATICA FINTEC
+GALLIATE – ITALY >
+The first text starting with “<]F0” instruct the machine that we are sending an embossing format layout”
+(see chapter Embossing Format Layout for details).
+You can send the format just one time and then all the plates text you need to produce.
+
+C330 Operator Manual
+
+Ver. 1.0
+
+Page 14/16
+
+9.
+
+ERROR LIST
+When an error occurred, the display will show the messages listed below.
+Apply the proper procedure to remove the error condition and then press CLEAR to continue
+(please carefully read the error comments).
+
+E04 - X MOTOR ERROR (X-HOME)
+E05 - Y MOTOR ERROR
+
+E06 - X MOTOR ERROR (X-END)
+
+E07 - DRUM MOTOR ERROR
+
+E08- PUNCH MOTOR ERROR
+E20 - FORMAT NUMBER ERROR (F0 to F9)
+E21- FORMAT NAME ERROR
+
+E22 - CARD DIMENSION SYNTAX ERROR
+E23 - UNIT MEASUREMENT ERROR
+E24 - FIELD NAME ERROR
+
+E25 - Y COORDINATE ERROR
+E26 - X COORDINATE ERROR
+E27 - TOO MANY FIELDS (max 50)
+E28 - FONT ERROR
+E29 - CHARACTER SPACE ERROR
+E30 - VARIABLE FIELD SYNTAX ERROR
+E31 - FIX FIELD SYNTAX ERROR
+E32 - FORMAT WITHOUT FIELDS
+E33 - FIELD NOT COMPLETE
+E34 - FIELD COMMAND ERROR
+E35 - FORMAT MEMORY OVERFLOW
+E37 - FIELD-BUFFER OVERFLOW
+E38 - ILLEGAL CHARACTER
+E44 - INPUT CONVERSION TABLE DATA LOST
+E48 - COVER OPEN ERROR
+
+C330 Operator Manual
+
+During the movement to the hopper position something stops the
+carriage. Open the cover and check the cause.
+Y movement error. Check the plate probably is wrong embossed,
+maybe the plate is bend and hit in the drum or the format set a Y
+coordinate too low.
+During the movement to the unload position or during the embossing
+something stop the carriage. Check the plate probably is wrong
+embossed. If you heard a loud noise open the cover and remove the
+plate which is pre-feed.
+Drum movement error. If you heard a loud noise open the cover and
+check manually if the drum is free to move; if not close the cover and
+press the SET key which will start the punch-recovery-procedure.
+Reopen the cover and verify that the drum is free to move, if OK press
+CLEAR to continue.
+The punch cycle is lock. Press the SET key which will start the punchrecovery-procedure. When OK press CLEAR to continue.
+The format number must be from 0 to 9 for the embossing formats
+and from 10 to 19 for the Co-print formats.
+The Format name is max 8 digit. A SPACE or CR must separate the
+format name to the next command
+F1 FN=TEST1 Y100X100 → OK
+F1 FN=TEST1Y100X100 → WRONG
+F1 FN=TEST 1 Y100X100 → WRONG
+Wrong SX or SY command.
+Wrong Un command.
+The Field name is max 7 digit. A SPACE or CR must separate the Field
+name to the next parameter
+N=LINE1 Y100X100 → OK
+N=LINE1Y100X100 → WRONG
+N=LINE 1 Y100X100 → WRONG
+Is OK: Y100 X100; Y50 X50; Y050 X050
+Is WRONG: Y10 0 X100; Y 50 X50; Y 050 X050
+Is OK: Y100 X100; Y50 X50; Y050 X050
+Is WRONG: Y100 X10 0; Y50 X 50; Y050 X 050
+You exceed the maximum number of fields (50 max).
+Use font 0 (F0) or font 1 (F1).
+Wrong Cinn or CSnn parameters.
+Check the syntax referring to the appropriate Manual chapter.
+Check the syntax referring to the appropriate Manual chapter.
+The format needs at least 1 field to be used.
+Check the field.
+Command or Parameter wrong.
+The format memory is over. Reediting the stored format and remove
+not needed Spaces in order to reduce the used memory.
+You exceed the maximum number of characters.
+A wrong character is received and cannot be emboss.
+Hardware error: the input conversion table is lost.
+Hardware error: close the cover.
+
+Ver. 1.0
+
+Page 15/16
+
+E64 - BUFFER OVFL.ERROR-DATA
+CORRUPTED
+E70 - X MOTOR EMBOSS ERROR
+E71 - Y MOTOR EMBOSS ERROR
+E72 - DRUM MOTOR EMBOSS ERROR
+
+The buffer is overflow.
+The data are corrupted.
+X-axis card movement error; reject the card.
+Y-axis card movement error; reject the card.
+The card can even be picked or not by the embosser’s clamp and the
+embossing sequence isn’t completed correctly.
+If the clamp picks the card but doesn’t start punching and the drum
+keeps on moving:
+a) Check drum motor home sensor;
+b) Drum motor home sensor is dirty: clean it with compressed air or
+lint free cloth;
+c) Drum motor home sensor isn’t connected correctly on the board.
+If the card is picked, but it is embossed in a wrong way check:
+a) Belt tension;
+b) If pulleys are fixed on the shafts;
+c) If the motor is moving correctly or it stalls.
+
+E74 - CARD MISFEED
+
+If the card is picked by the clamp but the drum doesn’t move check:
+a) Drum motor connection on the board.
+The clamp holds the card, but the embossing cycle doesn’t start.
+Check the entry sensor:
+a) Entry sensor is dirty: clean it with compressed air or lint free cloth;
+b) Entry sensor isn’t connected correctly on the board.
+
+E75 - XY CARD DIMENSION ERROR
+
+The clamp moves straight to embossing area without a card or after
+having made a bad noise:
+a) Check for Y home sensor;
+b) Y home sensor is dirty: clean it with compressed air or lint free cloth;
+c) Y home sensor isn’t connected correctly on the board;
+d) Check Y motor electrical connections;
+e) Check if the pulley is fixed on Y motor shaft;
+f) Check belt state.
+Wrong plate dimensions.
+
+E76 - XY COORDINATE ERROR
+
+Wrong embossing coordinates.
+
+E77 - LOAD POSITION ERROR
+
+After correctly loaded, card fails to move to the destination position.
+There is a jam inside the module.
+
+E78 - ILLEGAL CHARACTER
+
+A wrong character cannot be embossed.
+
+E80 - FEEDER HOME
+
+Check the Feeder Home sensor.
+
+E81 - FEEDER MOVEMENT
+
+Check the Feeder Motor.
+
+E82 - FEEDER ERROR
+
+Feeder empty.
+
+C330 Operator Manual
+
+Ver. 1.0
+
+Page 16/16
+
+

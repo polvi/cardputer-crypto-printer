@@ -1,0 +1,10 @@
+## ESP-IDF managed components from the Espressif component registry.
+## usb_host_vcp gives us VCP::open(); the per-chip drivers register with it.
+## The C330 uses an FTDI chip; CP210x/CH34x are included so any common
+## USB-serial adapter also works for bench testing.
+dependencies:
+  idf: ">=5.0"
+  espressif/usb_host_vcp: "*"
+  espressif/usb_host_ftdi_vcp: "*"
+  espressif/usb_host_cp210x_vcp: "*"
+  espressif/usb_host_ch34x_vcp: "*"

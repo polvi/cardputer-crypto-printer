@@ -1,0 +1,8 @@
+.pio/
+.vscode/
+.DS_Store
+managed_components/
+dependencies.lock
+sdkconfig.m5stack-cardputer
+sdkconfig.*
+!sdkconfig.defaults
