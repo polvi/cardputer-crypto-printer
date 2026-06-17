@@ -7,6 +7,13 @@ The Cardputer's USB-C port runs in **USB host** mode and drives the C330's
 built-in **FTDI** USB-serial chip directly — i.e. you plug the C330 into the
 Cardputer with a USB host/OTG cable, no PC in the loop.
 
+**Air-gapped by design.** The only thing this firmware ever drives is USB-serial
+to the C330. There is no network path: every cloud / radio / network component
+is stripped from the build, the Bluetooth controller is disabled, and WiFi is
+never initialized. The linked image contains **0** WiFi symbols and **0**
+Bluetooth/BLE symbols (verified with `nm` on `firmware.elf`), so the radios
+cannot be brought up at all.
+
 ## How it works
 
 The C330 accepts plain text over a serial line and emboss-prints whatever sits
@@ -78,7 +85,8 @@ level, M5Cardputer from GitHub) matches the M5Stack-recommended config.
 
 | Path | What |
 | --- | --- |
-| `platformio.ini` | Build config (USB-host deviations documented inline) |
+| `platformio.ini` | Build config + air-gap component removals (commented inline) |
+| `sdkconfig.defaults` | IDF settings: 1000 Hz tick, C++ exceptions, Arduino autostart, BT off |
 | `src/main.cpp` | Keyboard UI + USB-host FTDI bridge to the C330 |
 | `src/idf_component.yml` | ESP-IDF USB-host components (FTDI/CP210x/CH34x) |
 | `docs/` | C330 Operator Manual + Cardputer docs link |

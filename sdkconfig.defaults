@@ -1,2 +1,12 @@
 # arduino-esp32 (combined arduino+espidf build) requires a 1000 Hz tick.
 CONFIG_FREERTOS_HZ=1000
+
+# Let the Arduino core own app_main and run our setup()/loop().
+CONFIG_AUTOSTART_ARDUINO=y
+
+# The usb_host_*_vcp drivers (FTDI/CP210x/CH34x) are written with C++ exceptions.
+CONFIG_COMPILER_CXX_EXCEPTIONS=y
+
+# Air-gapped: disable the Bluetooth controller entirely. WiFi is never started
+# by the firmware, so its radio stays powered down at boot.
+CONFIG_BT_ENABLED=n
