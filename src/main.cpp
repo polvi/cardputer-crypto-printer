@@ -20,6 +20,7 @@
 #include <M5Cardputer.h>
 
 #include <memory>
+#include <cstring>
 
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
@@ -43,11 +44,30 @@ static constexpr uint8_t  C330_DATA_BITS = 8;
 
 static const char *TAG = "c330";
 
+// ---- C330 embossing layout (format 0) ---------------------------------------
+// Pushed on every connect so we never rely on a format stored in the machine.
+// Syntax + values follow the manual (chapters 7-8). Edit for your plate/text.
+//   U0     = unit is 10th of a mm
+//   SY540  = plate height 54.0 mm   (default; max plate 60 mm)
+//   SX860  = plate width  86.0 mm   (default; max plate 90 mm)
+// Then one embossing line:
+//   Y300   = 30.0 mm from the top edge to the bottom of the characters
+//   X100   = 10.0 mm from the left edge to the start of the characters
+//   F0     = font 0,  CI10 = 10 characters per inch
+// Each line of text we send maps to the next format line in order, so this
+// single line matches a single typed line of text.
+static const char *C330_FORMAT =
+    "<]F0 U0 SY540 SX860\r\n"
+    "Y300 X100 F0 CI10 >\r\n";
+
 // ---- shared state between the USB task and the UI loop ----------------------
 static std::unique_ptr<CdcAcmDevice> g_vcp;
 static SemaphoreHandle_t g_vcp_mutex = nullptr;        // guards g_vcp
 static SemaphoreHandle_t g_disconnected_sem = nullptr; // signalled on unplug
 static volatile bool g_ready = false;                  // device open + configured
+
+// Low-level write to the C330 (locks g_vcp). Defined after the USB task.
+static esp_err_t c330_write_raw(const char *data, size_t len);
 
 // =============================================================================
 // USB host plumbing
@@ -136,9 +156,15 @@ static void usb_host_task(void *arg) {
 
         xSemaphoreTake(g_vcp_mutex, portMAX_DELAY);
         g_vcp.reset(dev);
-        g_ready = true;
         xSemaphoreGive(g_vcp_mutex);
-        ESP_LOGI(TAG, "C330 ready @ %u baud", (unsigned)C330_BAUD);
+
+        // Push our embossing layout (format 0) so we don't depend on a format
+        // stored in the machine. Sent once per connect, before any text.
+        if (c330_write_raw(C330_FORMAT, strlen(C330_FORMAT)) != ESP_OK) {
+            ESP_LOGE(TAG, "failed to send format");
+        }
+        g_ready = true;
+        ESP_LOGI(TAG, "C330 ready @ %u baud, format 0 sent", (unsigned)C330_BAUD);
 
         // Block until the device is unplugged.
         xSemaphoreTake(g_disconnected_sem, portMAX_DELAY);
@@ -149,19 +175,25 @@ static void usb_host_task(void *arg) {
     }
 }
 
-// Frame the text per the C330 protocol and send it. Returns false if no device.
-static bool c330_send(const String &text) {
-    if (!g_ready) return false;
-    String framed = "<" + text + ">\r\n";
-
+// Low-level write to the C330. Locks g_vcp; does not depend on g_ready so it can
+// push the format during connect setup. Returns ESP_OK on success.
+static esp_err_t c330_write_raw(const char *data, size_t len) {
     xSemaphoreTake(g_vcp_mutex, portMAX_DELAY);
     esp_err_t err = ESP_ERR_INVALID_STATE;
     if (g_vcp) {
-        err = g_vcp->tx_blocking(reinterpret_cast<uint8_t *>(const_cast<char *>(framed.c_str())),
-                                 framed.length());
+        err = g_vcp->tx_blocking(reinterpret_cast<uint8_t *>(const_cast<char *>(data)), len);
     }
     xSemaphoreGive(g_vcp_mutex);
-    return err == ESP_OK;
+    return err;
+}
+
+// Frame the text per the C330 protocol and send it. Returns false if no device.
+// The layout is already defined by the format pushed on connect; here we send
+// just the text line, which maps to format line 1.
+static bool c330_send(const String &text) {
+    if (!g_ready) return false;
+    String framed = "<" + text + ">\r\n";
+    return c330_write_raw(framed.c_str(), framed.length()) == ESP_OK;
 }
 
 // =============================================================================

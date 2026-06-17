@@ -16,12 +16,15 @@ cannot be brought up at all.
 
 ## How it works
 
-The C330 accepts plain text over a serial line and emboss-prints whatever sits
-**between `<` and `>`**, using a layout ("format 0") already stored in the
-machine (see the Operator Manual, `docs/`). So a hello-world is just:
+The C330 emboss-prints whatever text sits **between `<` and `>`**, positioned by
+a *layout format* (see the Operator Manual, `docs/`). Rather than depend on a
+format stored in the machine, this firmware **pushes its own "format 0" on every
+connect**, then sends the text. So the wire traffic for a hello-world is:
 
 ```
-<HELLO WORLD>
+<]F0 U0 SY540 SX860          <- layout: 54.0 x 86.0 mm plate (pushed on connect)
+Y300 X100 F0 CI10 >          <- one line at 30.0/10.0 mm, font 0, 10 cpi
+<HELLO WORLD>                <- your text, maps to the line above
 ```
 
 Firmware flow:
@@ -30,7 +33,9 @@ Firmware flow:
 2. The ESP32-S3 USB host stack (`usb_host_vcp` + `usb_host_ftdi`) opens the
    C330's FTDI port and configures it to the C330's serial settings:
    **57600 baud, 8 data bits, no parity, 1 stop bit** (manual §6.2).
-3. On ENTER, the text is framed as `<text>\r\n` and written to the port.
+3. On connect it pushes the layout format above (the `C330_FORMAT` constant in
+   `src/main.cpp` — edit it for your plate size / line position).
+4. On ENTER, the text is framed as `<text>\r\n` and written to the port.
 
 ## Hardware / wiring
 
@@ -74,12 +79,10 @@ level, M5Cardputer from GitHub) matches the M5Stack-recommended config.
 
 1. Power on the C330, press **CLEAR** to finish its init cycle until it shows
    **READY** (manual §5).
-2. Make sure the C330 already has **format 0** stored (a plain text print uses
-   it). To (re)define a layout, send a line starting with `<]F0 ...` — see
-   manual §7. The firmware sends only the text; it doesn't push a format.
-3. Connect the C330 to the Cardputer with the host cable. The screen shows
-   **USB: connected (57600)**.
-4. Type your message, press **ENTER**. The plate feeds and embosses.
+2. Connect the C330 to the Cardputer with the host cable. On connect the
+   firmware pushes its layout format automatically, then the screen shows
+   **USB: connected (57600)**. No format needs to be pre-stored in the machine.
+3. Type your message, press **ENTER**. The plate feeds and embosses.
 
 ## Files
 
