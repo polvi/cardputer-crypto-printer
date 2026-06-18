@@ -1,36 +1,51 @@
-# Cardputer → C330 embosser
+# Cardputer crypto wallet printer
 
-Type a message on the **M5Stack Cardputer** keyboard, press **ENTER**, and it is
-embossed on a metal plate by a **Matica Fintec C330** metal-plate embosser.
+An **M5Stack Cardputer** that generates a crypto wallet and prints the key
+material to an attached printer (a **Matica Fintec C330**), while the **public
+key** is shown on screen for capture. **Private key material is never retained.**
 
-The Cardputer's USB-C port runs in **USB host** mode and drives the C330's
-built-in **FTDI** USB-serial chip directly — i.e. you plug the C330 into the
-Cardputer with a USB host/OTG cable, no PC in the loop.
+The Cardputer's USB-C port runs in **USB host** mode and drives the printer's
+**FTDI** USB-serial chip directly — plug the printer into the Cardputer with a
+USB host/OTG cable, no PC in the loop.
+
+> Status: the **device UI flow** is built. The actual key generation and the
+> printer payload format are **stubbed** behind a clean seam (`src/wallet.cpp`)
+> and dropped in later — see "Crypto / printer seam" below.
 
 **Air-gapped by design.** The only thing this firmware ever drives is USB-serial
-to the C330. There is no network path: every cloud / radio / network component
+to the printer. There is no network path: every cloud / radio / network component
 is stripped from the build, the Bluetooth controller is disabled, and WiFi is
 never initialized. The linked image contains **0** WiFi symbols and **0**
 Bluetooth/BLE symbols (verified with `nm` on `firmware.elf`), so the radios
-cannot be brought up at all.
+cannot be brought up at all — critical for a device that handles key material.
 
-## How it works
+## The flow
 
-The C330 emboss-prints whatever text sits **between `<` and `>`**, positioned by
-a *layout format* (see the Operator Manual, `docs/`). Rather than depend on a
-format stored in the machine, this firmware **pushes its own "format 0" on every
-connect**, then sends the text. So the wire traffic for a hello-world is:
+A four-screen state machine (`src/ui.cpp`), hardware-independent so it runs on
+both the device and the desktop simulator:
 
-```
-<]F0 U0 SY540 SX860          <- layout: 54.0 x 86.0 mm plate (pushed on connect)
-Y300 X100 F0 CI10 >          <- one line at 30.0/10.0 mm, font 0, 10 cpi
-<HELLO WORLD>                <- your text, maps to the line above
-```
+1. **Select** — choose a wallet type with a number key: `1` BTC, `2` ETH,
+   `3` BTC+ETH, `4` XMR.
+2. **Label** — optionally type a label (max 24 chars), editable with the arrow
+   caret. Enter continues, Esc goes back.
+3. **Hold to print** — hold the **top G0 button for 5 seconds**; a progress bar
+   fills. On completion the wallet is generated and the payload is sent to the
+   printer. Release early to cancel.
+4. **Result** — the **public key** is shown as a **QR code + text** for capture.
+   Any key wipes it and returns to Select.
 
-Firmware flow:
+### Crypto / printer seam (`src/wallet.h` / `wallet.cpp`)
 
-1. `M5Cardputer` drives the keyboard + screen — you type a line.
-2. The ESP32-S3 USB host stack (`usb_host_vcp` + `usb_host_ftdi`) opens the
+`generate_and_print_wallet(type, label, sink, out_public)` is the security
+boundary: the private key is generated, composed into the print payload, handed
+to the printer sink, and **zeroized before the function returns**. It is never
+returned to the caller and never stored in `UiState` — only the public key comes
+back. Real key generation and the real C330 layout drop in here later without
+touching `ui.cpp` or the front-ends. (Today these are clearly-marked stubs.)
+
+## Printer link
+
+1. The ESP32-S3 USB host stack (`usb_host_vcp` + `usb_host_ftdi`) opens the
    C330's FTDI port and configures it to the C330's serial settings:
    **57600 baud, 8 data bits, no parity, 1 stop bit** (manual §6.2).
 3. On connect it pushes the layout format above (the `C330_FORMAT` constant in
@@ -87,28 +102,37 @@ brew install sdl2          # one-time
 pio run -e sim -t exec     # build + open the window
 ```
 
-In the window: type to edit, move the caret with the arrows, **Backspace**
-deletes, **Esc** clears, **Enter** "sends" — which prints the exact framed bytes
-(`<TEXT>\r\n`) to the terminal so you can watch the protocol output. The same
-`ui_*` code runs unchanged on the device.
+Walk the whole flow in the window:
+
+| Key (sim) | Action |
+| --- | --- |
+| `1`–`4` | choose wallet type (Select screen) |
+| typing | edit the label (max 24); caret moves with the arrows |
+| **⌥ + `;,./`** or desktop arrows | move the caret |
+| **Enter** | continue to the Hold screen |
+| **Space (hold 5s)** | the print button — stands in for the device G0 button |
+| **Esc** | go back a screen |
+
+On a completed hold, the stub payload prints to the terminal as `TX -> C330: …`
+and the Result screen shows the QR + public key. The same `ui_*` code runs
+unchanged on the device.
 
 **Arrow keys.** The real Cardputer has no arrow keys — it uses **Fn + `;`(up)
 `,`(left) `.`(down) `/`(right)**. macOS can't expose the hardware Fn key to SDL,
-so the sim uses **Option (⌥) as Fn**: hold ⌥ and press `;,./`. The desktop arrow
-keys also work in the sim for convenience. (The device uses the real Fn chord.)
+so the sim uses **Option (⌥) as Fn**. Likewise the **G0 print button** maps to
+**Space** in the sim (so Space is not a typeable label character there).
 
 > The simulator covers the **screen + keyboard UI** only. The USB-host→FTDI link
-> to the C330 has no emulator and is exercised on real hardware (or a bench
+> to the printer has no emulator and is exercised on real hardware (or a bench
 > USB-serial adapter).
 
-## Usage
+## Usage (device)
 
-1. Power on the C330, press **CLEAR** to finish its init cycle until it shows
-   **READY** (manual §5).
-2. Connect the C330 to the Cardputer with the host cable. On connect the
-   firmware pushes its layout format automatically, then the screen shows
-   **USB: connected (57600)**. No format needs to be pre-stored in the machine.
-3. Type your message, press **ENTER**. The plate feeds and embosses.
+1. Power on the C330 printer, press **CLEAR** until it shows **READY** (manual §5).
+2. Connect it to the Cardputer with the host cable. The connection dot turns green.
+3. Press `1`–`4` to pick a wallet type, optionally type a label, then **hold the
+   top button for 5 s** to generate + print. Capture the public-key QR shown on
+   the result screen. Press any key to wipe it and start over.
 
 ## Files
 
@@ -116,8 +140,9 @@ keys also work in the sim for convenience. (The device uses the real Fn chord.)
 | --- | --- |
 | `platformio.ini` | Two envs: `m5stack-cardputer` (firmware) + `sim` (desktop UI) |
 | `sdkconfig.defaults` | IDF settings: 1000 Hz tick, C++ exceptions, Arduino autostart, BT off |
-| `src/ui.h` / `src/ui.cpp` | Hardware-independent UI: state, input model, rendering |
-| `src/main.cpp` | Device front-end: Cardputer keyboard + USB-host FTDI bridge |
-| `src/sim_main.cpp` | Desktop front-end: SDL window + Mac keyboard |
+| `src/ui.h` / `src/ui.cpp` | Hardware-independent UI: screen state machine, input, rendering |
+| `src/wallet.h` / `src/wallet.cpp` | Crypto/printer seam (stubbed); private key zeroized, never retained |
+| `src/main.cpp` | Device front-end: Cardputer keyboard + G0 button + USB-host FTDI bridge |
+| `src/sim_main.cpp` | Desktop front-end: SDL window + Mac keyboard + Space=print |
 | `src/idf_component.yml` | ESP-IDF USB-host components (FTDI/CP210x/CH34x) |
 | `docs/` | C330 Operator Manual + Cardputer docs link |

@@ -55,7 +55,8 @@ static bool sim_send(const char *data, unsigned len) {
 // The Cardputer has no arrow keys: Fn + ; , . / is the arrow cluster. macOS
 // doesn't expose the hardware Fn key to SDL, so in the sim we use Option (Alt)
 // as the Fn stand-in. (Desktop arrow keys also work, for convenience.)
-static bool g_fn_held = false; // Alt held -> acts as Cardputer Fn
+static bool g_fn_held = false;    // Alt held -> acts as Cardputer Fn
+static bool g_space_held = false; // Space held -> stands in for the G0 print button
 
 // Observe every SDL event without consuming it from M5GFX's own event pump.
 // SDL_TEXTINPUT gives us shifted/layout-correct characters; SDL_KEYDOWN gives
@@ -65,13 +66,16 @@ static int SDLCALL event_watch(void *, SDL_Event *e) {
         case SDL_KEYUP:
             if (e->key.keysym.sym == SDLK_LALT || e->key.keysym.sym == SDLK_RALT) {
                 g_fn_held = false;
+            } else if (e->key.keysym.sym == SDLK_SPACE) {
+                g_space_held = false;
             }
             return 0;
 
         case SDL_TEXTINPUT:
             if (g_fn_held) return 0; // Fn chord held: don't type the character
             for (const char *p = e->text.text; *p; ++p) {
-                if ((unsigned char)*p >= 0x20) push_event({InputKey::Char, *p});
+                // Space is the print-button stand-in here, not a typed char.
+                if ((unsigned char)*p > 0x20) push_event({InputKey::Char, *p});
             }
             return 0;
 
@@ -84,6 +88,10 @@ static int SDLCALL event_watch(void *, SDL_Event *e) {
 
     if (e->key.keysym.sym == SDLK_LALT || e->key.keysym.sym == SDLK_RALT) {
         g_fn_held = true;
+        return 0;
+    }
+    if (e->key.keysym.sym == SDLK_SPACE) {
+        g_space_held = true; // hold-to-print button (mirrors the device G0 button)
         return 0;
     }
 
@@ -121,8 +129,8 @@ void setup(void) {
     SDL_StartTextInput();
     SDL_AddEventWatch(event_watch, nullptr);
 
-    ui_init(g_ui, sim_send, "Cardputer C330 UI (sim)");
-    ui_set_connected(g_ui, true); // pretend the C330 is attached
+    ui_init(g_ui, sim_send, nullptr);
+    ui_set_connected(g_ui, true); // pretend the printer is attached
     ui_render(g_display, g_ui);
 }
 
@@ -138,6 +146,12 @@ void loop(void) {
         }
         if (ui_handle_input(g_ui, ev)) dirty = true;
     }
+
+    // Feed the print button + clock every frame so the hold timer advances.
+    uint32_t now = SDL_GetTicks();
+    if (ui_set_print_button(g_ui, g_space_held, now)) dirty = true;
+    if (ui_tick(g_ui, now)) dirty = true;
+
     if (dirty) ui_render(g_display, g_ui);
     SDL_Delay(16);
 }

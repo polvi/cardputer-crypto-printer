@@ -213,7 +213,7 @@ void setup() {
     // Run USB host on core 0 so the Arduino UI keeps core 1 to itself.
     xTaskCreatePinnedToCore(usb_host_task, "usb_host", 8192, nullptr, 5, nullptr, 0);
 
-    ui_init(g_ui, device_send, "Connect C330 via USB...");
+    ui_init(g_ui, device_send, nullptr);
     ui_render(M5Cardputer.Display, g_ui);
 }
 
@@ -245,9 +245,16 @@ void loop() {
             }
             if (ui_handle_input(g_ui, {InputKey::Char, c})) dirty = true;
         }
+        if (st.space && ui_handle_input(g_ui, {InputKey::Char, ' '})) dirty = true;
         if (st.del   && ui_handle_input(g_ui, {InputKey::Backspace, 0})) dirty = true;
         if (st.enter && ui_handle_input(g_ui, {InputKey::Enter, 0}))     dirty = true;
     }
+
+    // Hold-to-print: the physical top button (G0). M5Cardputer.update() above
+    // refreshed BtnA. Feed its state + the clock to the hold timer every loop.
+    uint32_t now = millis();
+    if (ui_set_print_button(g_ui, M5Cardputer.BtnA.isPressed(), now)) dirty = true;
+    if (ui_tick(g_ui, now)) dirty = true;
 
     if (dirty) ui_render(M5Cardputer.Display, g_ui);
     delay(10);
