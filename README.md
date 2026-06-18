@@ -28,11 +28,12 @@ both the device and the desktop simulator:
    `3` BTC+ETH, `4` XMR.
 2. **Label** — optionally type a label (max 24 chars), editable with the arrow
    caret. Enter continues, Esc goes back.
-3. **Hold to print** — hold the **top G0 button for 5 seconds**; a progress bar
-   fills. On completion the wallet is generated and the payload is sent to the
-   printer. Release early to cancel.
+3. **Confirm** — shows the chosen wallet type and label, and prompts to print.
+   **Press the top G0 button once** to generate + send to the printer. Esc goes
+   back to edit.
 4. **Result** — the **public key** is shown as a **QR code + text** for capture.
-   Any key wipes it and returns to Select.
+   A multi-key wallet (BTC+ETH) shows **one QR per chain**, side by side. Any key
+   wipes it and returns to Select.
 
 ### Crypto / printer seam (`src/wallet.h` / `wallet.cpp`)
 
@@ -48,9 +49,10 @@ touching `ui.cpp` or the front-ends. (Today these are clearly-marked stubs.)
 1. The ESP32-S3 USB host stack (`usb_host_vcp` + `usb_host_ftdi`) opens the
    C330's FTDI port and configures it to the C330's serial settings:
    **57600 baud, 8 data bits, no parity, 1 stop bit** (manual §6.2).
-3. On connect it pushes the layout format above (the `C330_FORMAT` constant in
+3. On connect it pushes the layout format (the `C330_FORMAT` constant in
    `src/main.cpp` — edit it for your plate size / line position).
-4. On ENTER, the text is framed as `<text>\r\n` and written to the port.
+4. On print, the payload composed by `src/wallet.cpp` is framed as `<…>\r\n` and
+   written to the port (the real engraving layout is still to be defined).
 
 ## Hardware / wiring
 
@@ -109,12 +111,12 @@ Walk the whole flow in the window:
 | `1`–`4` | choose wallet type (Select screen) |
 | typing | edit the label (max 24); caret moves with the arrows |
 | **⌥ + `;,./`** or desktop arrows | move the caret |
-| **Enter** | continue to the Hold screen |
-| **Space (hold 5s)** | the print button — stands in for the device G0 button |
+| **Enter** | Label → Confirm |
+| **Space** | the print button — one press = print (stands in for the device G0) |
 | **Esc** | go back a screen |
 
-On a completed hold, the stub payload prints to the terminal as `TX -> C330: …`
-and the Result screen shows the QR + public key. The same `ui_*` code runs
+On print, the stub payload prints to the terminal as `TX -> C330: …` and the
+Result screen shows the QR(s) + public key(s). The same `ui_*` code runs
 unchanged on the device.
 
 **Arrow keys.** The real Cardputer has no arrow keys — it uses **Fn + `;`(up)
@@ -130,9 +132,10 @@ so the sim uses **Option (⌥) as Fn**. Likewise the **G0 print button** maps to
 
 1. Power on the C330 printer, press **CLEAR** until it shows **READY** (manual §5).
 2. Connect it to the Cardputer with the host cable. The connection dot turns green.
-3. Press `1`–`4` to pick a wallet type, optionally type a label, then **hold the
-   top button for 5 s** to generate + print. Capture the public-key QR shown on
-   the result screen. Press any key to wipe it and start over.
+3. Press `1`–`4` to pick a wallet type, optionally type a label, review the
+   **Confirm** screen, then **press the top button once** to generate + print.
+   Capture the public-key QR(s) on the result screen. Press any key to wipe and
+   start over.
 
 ## Files
 

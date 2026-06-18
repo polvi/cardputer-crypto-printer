@@ -1,6 +1,7 @@
 #include "wallet.h"
 
 #include <cstddef>
+#include <vector>
 
 namespace {
 
@@ -17,8 +18,8 @@ unsigned g_stub_counter = 0;
 
 // ---- STUBS (replace with real key generation) -------------------------------
 // A placeholder "private key": 64 hex chars. Real impl: CSPRNG -> curve scalar.
-std::string stub_generate_private(WalletType type) {
-    unsigned seed = (static_cast<unsigned>(type) + 1) * 2654435761u + (++g_stub_counter);
+std::string stub_generate_private() {
+    unsigned seed = 2654435761u + (++g_stub_counter) * 40503u;
     static const char *hex = "0123456789abcdef";
     std::string priv;
     priv.reserve(64);
@@ -29,17 +30,36 @@ std::string stub_generate_private(WalletType type) {
     return priv;
 }
 
-// A placeholder public key/address derived from the private key. Real impl:
-// per-chain public-key derivation + address encoding.
-std::string stub_derive_public(WalletType type, const std::string &priv) {
-    const std::string tag = priv.substr(0, 8);
+// One chain's worth of keys. `priv` is zeroized by the caller after use.
+struct ChainKey {
+    std::string chain;
+    std::string priv;
+    std::string pub;
+};
+
+// A placeholder public key/address per chain. Real impl: curve public-key
+// derivation + chain-specific address encoding.
+ChainKey gen_chain(const char *chain, const std::string &prefix) {
+    ChainKey c;
+    c.chain = chain;
+    c.priv  = stub_generate_private();
+    c.pub   = prefix + c.priv.substr(0, 32);
+    return c;
+}
+
+// The per-chain key set a wallet type yields. Combined types yield several.
+std::vector<ChainKey> gen_wallet(WalletType type) {
+    std::vector<ChainKey> v;
     switch (type) {
-        case WalletType::BTC:     return "bc1q" + tag + "stubbtc0";
-        case WalletType::ETH:     return "0x" + priv.substr(0, 40);
-        case WalletType::BTC_ETH: return "BTC:bc1q" + tag + "\nETH:0x" + priv.substr(0, 20);
-        case WalletType::XMR:     return "4" + tag + "stubxmraddress";
+        case WalletType::BTC:     v.push_back(gen_chain("BTC", "bc1q")); break;
+        case WalletType::ETH:     v.push_back(gen_chain("ETH", "0x"));   break;
+        case WalletType::XMR:     v.push_back(gen_chain("XMR", "4"));    break;
+        case WalletType::BTC_ETH:
+            v.push_back(gen_chain("BTC", "bc1q"));
+            v.push_back(gen_chain("ETH", "0x"));
+            break;
     }
-    return tag;
+    return v;
 }
 
 // The bytes actually sent to the printer. This is the analog of the old
@@ -47,10 +67,12 @@ std::string stub_derive_public(WalletType type, const std::string &priv) {
 // real engraving layout for private key material is OUT OF SCOPE; for now we
 // frame a human-readable record so the simulator can show what would print.
 std::string compose_print_payload(WalletType type, const std::string &label,
-                                  const std::string &priv, const std::string &pub) {
+                                  const std::vector<ChainKey> &chains) {
     std::string body = wallet_name(type);
-    if (!label.empty()) body += " " + label;
-    body += " PRIV:" + priv + " PUB:" + pub;
+    if (!label.empty()) body += " \"" + label + "\"";
+    for (const auto &c : chains) {
+        body += " " + c.chain + "[PRIV:" + c.priv + " PUB:" + c.pub + "]";
+    }
     return "<" + body + ">\r\n";
 }
 
@@ -58,14 +80,17 @@ std::string compose_print_payload(WalletType type, const std::string &label,
 
 bool generate_and_print_wallet(WalletType type, const std::string &label,
                                SendFn sink, WalletPublic &out_public) {
-    std::string priv = stub_generate_private(type);
-    out_public.pubkey = stub_derive_public(type, priv);
+    std::vector<ChainKey> chains = gen_wallet(type);
 
-    std::string payload = compose_print_payload(type, label, priv, out_public.pubkey);
+    std::string payload = compose_print_payload(type, label, chains);
     bool ok = sink && sink(payload.data(), (unsigned)payload.size());
 
+    // Hand back only the public keys.
+    out_public.keys.clear();
+    for (const auto &c : chains) out_public.keys.push_back({c.chain, c.pub});
+
     // Private material must not outlive this call.
-    secure_zero(priv);
+    for (auto &c : chains) secure_zero(c.priv);
     secure_zero(payload);
     return ok;
 }

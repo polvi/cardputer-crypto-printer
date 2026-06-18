@@ -15,9 +15,11 @@
 #include "ui.h"   // WalletType, SendFn
 #include <string>
 
-// The public, safe-to-retain result of generating a wallet.
+// The public, safe-to-retain result of generating a wallet. A wallet may yield
+// more than one public key (e.g. BTC+ETH -> a BTC and an ETH address), each
+// shown as its own QR on the result screen.
 struct WalletPublic {
-    std::string pubkey; // address / public key text for display + QR
+    std::vector<PubKey> keys; // PubKey is defined in ui.h
 };
 
 // Generate a wallet, compose the printer payload, send it via `sink`, then

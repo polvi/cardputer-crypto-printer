@@ -12,6 +12,7 @@
 
 #include <M5GFX.h>
 #include <string>
+#include <vector>
 #include <cstdint>
 
 // One input event, target-agnostic. The device/sim front-ends translate their
@@ -27,6 +28,7 @@ enum class InputKey {
     Up,
     Down,
     Esc,
+    Print,      // the dedicated print button (device G0 / sim Space)
 };
 
 struct InputEvent {
@@ -40,19 +42,22 @@ struct InputEvent {
 using SendFn = bool (*)(const char *data, unsigned len);
 
 // The crypto wallet printer flow. A linear screen stack:
-//   Select -> Label -> Hold -> Result   (forward via select/Enter/hold; back via Esc)
-enum class Screen { Select, Label, Hold, Result };
+//   Select -> Label -> Confirm -> Result   (forward via select/Enter/Print; back via Esc)
+enum class Screen { Select, Label, Confirm, Result };
 
 enum class WalletType { BTC, ETH, BTC_ETH, XMR };
 
 // Human-readable wallet name ("BTC", "ETH", "BTC+ETH", "XMR").
 const char *wallet_name(WalletType w);
 
-// How long the print button must be held, in milliseconds.
-static constexpr uint32_t HOLD_MS = 5000;
-
 // Max characters for the optional label.
 static constexpr unsigned LABEL_MAX = 24;
+
+// One public key to display (a wallet may yield several, e.g. BTC+ETH -> 2).
+struct PubKey {
+    std::string chain; // short label, e.g. "BTC"
+    std::string key;   // address / public key text
+};
 
 struct UiState {
     // --- existing, reused ---
@@ -66,15 +71,8 @@ struct UiState {
     Screen      screen = Screen::Select;
     WalletType  wallet = WalletType::BTC;
 
-    // --- hold-to-print timing (the caller supplies the clock; the core never
-    //     reads a clock itself, so it stays hardware-independent) ---
-    bool        holdActive  = false;
-    uint32_t    holdStartMs = 0;
-    uint32_t    nowMs       = 0;
-    bool        printed     = false;
-
-    // --- result: PUBLIC key only. No private-key field ever lives here. ---
-    std::string pubkey;
+    // --- result: PUBLIC keys only. No private-key field ever lives here. ---
+    std::vector<PubKey> pubkeys;
 };
 
 void ui_init(UiState &s, SendFn send, const char *status);
@@ -84,15 +82,6 @@ bool ui_set_connected(UiState &s, bool connected);
 
 // Apply one input event. Returns true if the UI changed and should be redrawn.
 bool ui_handle_input(UiState &s, const InputEvent &ev);
-
-// Feed the print-button state + current clock (ms). Drives the hold timer:
-// starts on press, cancels on early release, completes (prints) at HOLD_MS.
-// No-op unless on the Hold screen. Returns true if a redraw is needed.
-bool ui_set_print_button(UiState &s, bool pressed, uint32_t now_ms);
-
-// Advance the clock so the progress bar repaints and completion is checked even
-// when the button state did not change. No-op off the Hold screen.
-bool ui_tick(UiState &s, uint32_t now_ms);
 
 // Draw the whole UI.
 void ui_render(lgfx::LGFX_Device &d, const UiState &s);

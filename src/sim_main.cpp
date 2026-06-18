@@ -55,8 +55,7 @@ static bool sim_send(const char *data, unsigned len) {
 // The Cardputer has no arrow keys: Fn + ; , . / is the arrow cluster. macOS
 // doesn't expose the hardware Fn key to SDL, so in the sim we use Option (Alt)
 // as the Fn stand-in. (Desktop arrow keys also work, for convenience.)
-static bool g_fn_held = false;    // Alt held -> acts as Cardputer Fn
-static bool g_space_held = false; // Space held -> stands in for the G0 print button
+static bool g_fn_held = false; // Alt held -> acts as Cardputer Fn
 
 // Observe every SDL event without consuming it from M5GFX's own event pump.
 // SDL_TEXTINPUT gives us shifted/layout-correct characters; SDL_KEYDOWN gives
@@ -66,8 +65,6 @@ static int SDLCALL event_watch(void *, SDL_Event *e) {
         case SDL_KEYUP:
             if (e->key.keysym.sym == SDLK_LALT || e->key.keysym.sym == SDLK_RALT) {
                 g_fn_held = false;
-            } else if (e->key.keysym.sym == SDLK_SPACE) {
-                g_space_held = false;
             }
             return 0;
 
@@ -91,7 +88,9 @@ static int SDLCALL event_watch(void *, SDL_Event *e) {
         return 0;
     }
     if (e->key.keysym.sym == SDLK_SPACE) {
-        g_space_held = true; // hold-to-print button (mirrors the device G0 button)
+        // Space is the print button (mirrors the device G0 button): one press
+        // = one Print event. Ignore auto-repeat while the key is held.
+        if (!e->key.repeat) push_event({InputKey::Print, 0});
         return 0;
     }
 
@@ -146,11 +145,6 @@ void loop(void) {
         }
         if (ui_handle_input(g_ui, ev)) dirty = true;
     }
-
-    // Feed the print button + clock every frame so the hold timer advances.
-    uint32_t now = SDL_GetTicks();
-    if (ui_set_print_button(g_ui, g_space_held, now)) dirty = true;
-    if (ui_tick(g_ui, now)) dirty = true;
 
     if (dirty) ui_render(g_display, g_ui);
     SDL_Delay(16);

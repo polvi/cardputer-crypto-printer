@@ -27,23 +27,13 @@ void ui_init(UiState &s, SendFn send, const char *status) {
     s.connected = false;
     s.screen    = Screen::Select;
     s.wallet    = WalletType::BTC;
-    s.holdActive  = false;
-    s.holdStartMs = 0;
-    s.nowMs       = 0;
-    s.printed     = false;
-    s.pubkey.clear();
+    s.pubkeys.clear();
 }
 
 bool ui_set_connected(UiState &s, bool connected) {
     if (s.connected == connected) return false;
     s.connected = connected;
     return true; // just repaint the connection indicator
-}
-
-static void reset_hold(UiState &s) {
-    s.holdActive  = false;
-    s.holdStartMs = 0;
-    s.printed     = false;
 }
 
 // ============================================================================
@@ -102,9 +92,8 @@ static bool handle_label(UiState &s, const InputEvent &ev) {
             return true;
 
         case InputKey::Enter: // label is optional; may be empty
-            s.screen = Screen::Hold;
-            reset_hold(s);
-            s.status = "Hold top button 5s";
+            s.screen = Screen::Confirm;
+            s.status = "Press button to PRINT   ESC=back";
             return true;
 
         case InputKey::Esc:
@@ -119,24 +108,41 @@ static bool handle_label(UiState &s, const InputEvent &ev) {
     }
 }
 
-static bool handle_hold(UiState &s, const InputEvent &ev) {
+// Generate + print, then move to the result screen. Private material lives only
+// inside generate_and_print_wallet() and is zeroized there; we keep only pubkeys.
+static bool do_print(UiState &s) {
+    if (!s.connected) {
+        s.status = "Printer not connected";
+        return true;
+    }
+    WalletPublic pub;
+    if (generate_and_print_wallet(s.wallet, s.buffer, s.send, pub)) {
+        s.pubkeys = pub.keys;
+        s.screen  = Screen::Result;
+        s.status  = "Any key: new wallet";
+    } else {
+        s.status = "Print FAILED";
+    }
+    return true;
+}
+
+static bool handle_confirm(UiState &s, const InputEvent &ev) {
+    if (ev.key == InputKey::Print) return do_print(s);
     if (ev.key == InputKey::Esc) {
         s.screen = Screen::Label;
-        reset_hold(s);
         s.status = "ENTER=continue  ESC=back";
         return true;
     }
-    return false; // the hold gesture is the button, not a key
+    return false;
 }
 
 static bool handle_result(UiState &s, const InputEvent &ev) {
     if (ev.key == InputKey::None) return false;
-    // Any key: wipe the displayed key and start over.
-    s.pubkey.clear();
-    s.pubkey.shrink_to_fit();
+    // Any key: wipe the displayed keys and start over.
+    s.pubkeys.clear();
+    s.pubkeys.shrink_to_fit();
     s.buffer.clear();
     s.cursor = 0;
-    reset_hold(s);
     s.screen = Screen::Select;
     s.status = "Press 1-4 to choose";
     return true;
@@ -144,68 +150,12 @@ static bool handle_result(UiState &s, const InputEvent &ev) {
 
 bool ui_handle_input(UiState &s, const InputEvent &ev) {
     switch (s.screen) {
-        case Screen::Select: return handle_select(s, ev);
-        case Screen::Label:  return handle_label(s, ev);
-        case Screen::Hold:   return handle_hold(s, ev);
-        case Screen::Result: return handle_result(s, ev);
+        case Screen::Select:  return handle_select(s, ev);
+        case Screen::Label:   return handle_label(s, ev);
+        case Screen::Confirm: return handle_confirm(s, ev);
+        case Screen::Result:  return handle_result(s, ev);
     }
     return false;
-}
-
-// ============================================================================
-// Hold-to-print timing
-// ============================================================================
-// Generate + print, then move to the result screen. Private material lives only
-// inside generate_and_print_wallet() and is zeroized there; we keep only pubkey.
-static void do_print(UiState &s) {
-    if (!s.connected) {
-        s.status     = "Printer not connected";
-        s.holdActive = false; // require a fresh press once connected
-        return;
-    }
-    WalletPublic pub;
-    if (generate_and_print_wallet(s.wallet, s.buffer, s.send, pub)) {
-        s.pubkey  = pub.pubkey;
-        s.printed = true;
-        s.screen  = Screen::Result;
-        s.status  = "Any key: new wallet";
-    } else {
-        s.status     = "Print FAILED";
-        s.holdActive = false;
-    }
-}
-
-bool ui_set_print_button(UiState &s, bool pressed, uint32_t now_ms) {
-    if (s.screen != Screen::Hold) return false;
-    s.nowMs = now_ms;
-    bool changed = false;
-
-    if (pressed && !s.holdActive && !s.printed) {
-        s.holdActive  = true;
-        s.holdStartMs = now_ms;
-        s.status      = "Keep holding...";
-        changed = true;
-    } else if (!pressed && s.holdActive) {
-        s.holdActive = false;
-        if (!s.printed) s.status = "Cancelled";
-        changed = true;
-    }
-
-    if (s.holdActive && !s.printed && (now_ms - s.holdStartMs) >= HOLD_MS) {
-        do_print(s);
-        changed = true;
-    }
-    return changed;
-}
-
-bool ui_tick(UiState &s, uint32_t now_ms) {
-    if (s.screen != Screen::Hold) return false;
-    s.nowMs = now_ms;
-    if (s.holdActive && !s.printed && (now_ms - s.holdStartMs) >= HOLD_MS) {
-        do_print(s);
-        return true;
-    }
-    return s.holdActive; // keep the progress bar animating while held
 }
 
 // ============================================================================
@@ -250,57 +200,77 @@ static void render_label(lgfx::LGFX_Device &d, const UiState &s) {
     d.fillRect(caretX, y0, 2, chh, TFT_YELLOW);
 }
 
-static void render_hold(lgfx::LGFX_Device &d, const UiState &s) {
+static void render_confirm(lgfx::LGFX_Device &d, const UiState &s) {
     d.setTextColor(TFT_CYAN, TFT_BLACK);
     d.setTextSize(2);
     d.setCursor(4, 4);
-    d.print("Print ");
+    d.print("Confirm");
+
+    d.setTextSize(2);
+    d.setTextColor(TFT_WHITE, TFT_BLACK);
+    d.setCursor(4, 34);
+    d.print("Type: ");
     d.print(wallet_name(s.wallet));
 
+    d.setCursor(4, 60);
+    d.print("Label:");
+
+    // Label value (up to 24 chars) at size 1 so it always fits the width.
     d.setTextSize(1);
-    d.setTextColor(TFT_WHITE, TFT_BLACK);
-    d.setCursor(4, 26);
-    d.print("Label: ");
+    d.setTextColor(TFT_YELLOW, TFT_BLACK);
+    d.setCursor(12, 84);
     d.print(s.buffer.empty() ? "(none)" : s.buffer.c_str());
-
-    d.setCursor(4, 42);
-    d.print("HOLD top button 5s");
-
-    // progress bar
-    const int bx = 4, by = 60, bw = d.width() - 8, bh = 20;
-    d.drawRect(bx, by, bw, bh, TFT_WHITE);
-    uint32_t elapsed = (s.holdActive && s.nowMs >= s.holdStartMs) ? (s.nowMs - s.holdStartMs) : 0;
-    if (elapsed > HOLD_MS) elapsed = HOLD_MS;
-    int fill = (int)((uint64_t)(bw - 2) * elapsed / HOLD_MS);
-    d.fillRect(bx + 1, by + 1, fill, bh - 2, TFT_GREEN);
 }
 
-static void render_result(lgfx::LGFX_Device &d, const UiState &s) {
+// One key: large QR on the left, full key text wrapped on the right.
+static void render_result_single(lgfx::LGFX_Device &d, const PubKey &pk) {
     d.setTextColor(TFT_CYAN, TFT_BLACK);
     d.setTextSize(1);
     d.setCursor(4, 3);
     d.print("PUBLIC KEY - ");
-    d.print(wallet_name(s.wallet));
+    d.print(pk.chain.c_str());
 
-    if (s.pubkey.empty()) return;
-
-    // QR on the left for scanning
     const int qr = 100;
-    d.qrcode(s.pubkey.c_str(), 4, 16, qr, 1, true);
+    d.qrcode(pk.key.c_str(), 4, 16, qr, 1, true);
 
-    // Key text to the right, manually wrapped into the remaining width.
-    // (Newlines in the key, e.g. BTC+ETH, are flattened to spaces for layout.)
     const int tx = 4 + qr + 6;
     const int cols = (d.width() - tx) / 6;
     const int bottom = d.height() - 14;
     d.setTextColor(TFT_WHITE, TFT_BLACK);
-    std::string flat = s.pubkey;
-    for (char &c : flat) if (c == '\n') c = ' ';
     int ty = 16;
-    for (size_t i = 0; i < flat.size() && ty < bottom && cols > 0; i += cols, ty += 9) {
+    for (size_t i = 0; i < pk.key.size() && ty < bottom && cols > 0; i += cols, ty += 9) {
         d.setCursor(tx, ty);
-        d.print(flat.substr(i, cols).c_str());
+        d.print(pk.key.substr(i, cols).c_str());
     }
+}
+
+// Several keys: one QR per chain, side by side, each labeled.
+static void render_result_multi(lgfx::LGFX_Device &d, const std::vector<PubKey> &keys) {
+    const int n = (int)keys.size();
+    const int cellw = d.width() / n;
+    int qr = cellw - 12;
+    if (qr > 96) qr = 96;
+    for (int i = 0; i < n; ++i) {
+        const int cx = i * cellw;
+        d.setTextSize(1);
+        d.setTextColor(TFT_CYAN, TFT_BLACK);
+        d.setCursor(cx + 6, 4);
+        d.print(keys[i].chain.c_str());
+
+        const int qx = cx + (cellw - qr) / 2;
+        d.qrcode(keys[i].key.c_str(), qx, 16, qr, 1, true);
+
+        d.setTextColor(TFT_WHITE, TFT_BLACK);
+        d.setCursor(cx + 4, 16 + qr + 2);
+        const int cols = (cellw - 6) / 6;
+        d.print(keys[i].key.substr(0, cols > 0 ? cols : 0).c_str());
+    }
+}
+
+static void render_result(lgfx::LGFX_Device &d, const UiState &s) {
+    if (s.pubkeys.empty()) return;
+    if (s.pubkeys.size() == 1) render_result_single(d, s.pubkeys[0]);
+    else                       render_result_multi(d, s.pubkeys);
 }
 
 static void draw_chrome(lgfx::LGFX_Device &d, const UiState &s) {
@@ -317,10 +287,10 @@ static void draw_chrome(lgfx::LGFX_Device &d, const UiState &s) {
 void ui_render(lgfx::LGFX_Device &d, const UiState &s) {
     d.fillScreen(TFT_BLACK);
     switch (s.screen) {
-        case Screen::Select: render_select(d, s); break;
-        case Screen::Label:  render_label(d, s);  break;
-        case Screen::Hold:   render_hold(d, s);   break;
-        case Screen::Result: render_result(d, s); break;
+        case Screen::Select:  render_select(d, s);  break;
+        case Screen::Label:   render_label(d, s);   break;
+        case Screen::Confirm: render_confirm(d, s); break;
+        case Screen::Result:  render_result(d, s);  break;
     }
     draw_chrome(d, s);
 }
