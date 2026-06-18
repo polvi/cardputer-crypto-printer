@@ -50,9 +50,9 @@ bool wallet_generate_xmr(std::array<std::string, 16> &words, std::string &addr) 
         "duck", "valid", "someone", "little", "harsh", "puppy", "airport", "language",
     };
     for (int i = 0; i < 16; ++i) words[i] = kPoly[i];
-    addr = "4PLACEHOLDERmoneroSIMaddressNOTrealDOnotSEND"; // SIM placeholder (not real)
-    while (addr.size() < 95) addr += "x";
-    addr.resize(95);
+    // Real monero address for this exact polyseed phrase (verified natively;
+    // key->address matches keyprint.go byte-for-byte). The device derives it.
+    addr = "47AjPj7DVPQVGGXJXbbTMZWcKQDejGHYZChVkeujy8qPLjKkgdsxge4DzvkRMgU4sDUigGLuBN9stKBMowhuXH2HJHWAuRf";
     return true;
 }
 #endif

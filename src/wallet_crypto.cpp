@@ -9,6 +9,8 @@
 #include <string>
 #include <cstring>
 
+#include <cstdlib>
+
 extern "C" {
 #include "bip39.h"
 #include "bip32.h"
@@ -20,6 +22,10 @@ extern "C" {
 #include "segwit_addr.h"
 #include "ecdsa.h"
 #include "memzero.h"
+#include "pbkdf2.h"
+#include "monero/xmr.h"
+#include "monero/base58.h"
+#include "polyseed.h"
 }
 
 #include "esp_random.h"
@@ -117,16 +123,77 @@ bool wallet_generate(std::array<std::string, 24> &words, std::string &btc, std::
     return true;
 }
 
-// XMR real keygen arrives in the polyseed phase. Until then a placeholder so the
-// device XMR flow still composes (polyseed test phrase + non-derived address).
+// ---- XMR: polyseed (16 words) -> Monero address -----------------------------
+// polyseed's crypto is dependency-injected; wire it to esp RNG + trezor pbkdf2.
+extern "C" {
+static void ps_randbytes(void *r, size_t n) { esp_fill_random(static_cast<uint8_t *>(r), n); }
+static void ps_pbkdf2(const uint8_t *pw, size_t pl, const uint8_t *s, size_t sl,
+                      uint64_t it, uint8_t *k, size_t kl) {
+    pbkdf2_hmac_sha256(pw, int(pl), s, int(sl), uint32_t(it), k, int(kl));
+}
+static void ps_memzero(void *p, size_t n) { memzero(p, n); }
+static size_t ps_identity(const char *str, polyseed_str norm) {
+    size_t n = strlen(str);
+    memcpy(norm, str, n + 1);
+    return n;
+}
+static uint64_t ps_time(void) { return 0; } // no RTC; birthday = epoch
+}
+static const polyseed_dependency g_ps_deps = {
+    ps_randbytes, ps_pbkdf2, ps_memzero, ps_identity, ps_identity, ps_time, malloc, free};
+
+// Monero address from a 32-byte key: spend = reduce(key); view = reduce(keccak(spend));
+// pubs = base*scalar; address = base58check(0x12 || pub_spend || pub_view). Verified
+// byte-for-byte against keyprint.go's scheme natively.
+static void xmr_address_from_key(const uint8_t key[32], std::string &out) {
+    bignum256modm spend, view;
+    expand256_modm(spend, key, 32);
+    uint8_t sb[32];
+    contract256_modm(sb, spend);
+    uint8_t kh[32];
+    keccak_256(sb, 32, kh);
+    expand256_modm(view, kh, 32);
+    ge25519 Ps, Pv;
+    ge25519_scalarmult_base_wrapper(&Ps, spend);
+    ge25519_scalarmult_base_wrapper(&Pv, view);
+    uint8_t data[64];
+    ge25519_pack(data, &Ps);
+    ge25519_pack(data + 32, &Pv);
+    char addr[160];
+    xmr_base58_addr_encode_check(18, data, 64, addr, sizeof(addr));
+    out = addr;
+    memzero(spend, sizeof(spend));
+    memzero(view, sizeof(view));
+    memzero(sb, sizeof(sb));
+}
+
 bool wallet_generate_xmr(std::array<std::string, 16> &words, std::string &addr) {
-    static const char *kPoly[16] = {
-        "raven", "tail", "swear", "infant", "grief", "assist", "regular", "lamp",
-        "duck", "valid", "someone", "little", "harsh", "puppy", "airport", "language"};
-    for (int i = 0; i < 16; ++i) words[i] = kPoly[i];
-    addr = "4PLACEHOLDERmoneroSIMaddressNOTrealDOnotSEND";
-    while (addr.size() < 95) addr += "x";
-    addr.resize(95);
+    static bool injected = false;
+    if (!injected) { polyseed_inject(&g_ps_deps); injected = true; }
+
+    bootloader_random_enable(); // SAR-ADC entropy for the 150-bit secret
+    polyseed_data *seed = nullptr;
+    polyseed_status st = polyseed_create(0, &seed);
+    bootloader_random_disable();
+    if (st != POLYSEED_OK || !seed) return false;
+
+    polyseed_str phrase;
+    polyseed_encode(seed, polyseed_get_lang(0), POLYSEED_MONERO, phrase); // 16 words
+    int wi = 0;
+    for (const char *p = phrase; *p && wi < 16;) {
+        const char *sp = strchr(p, ' ');
+        size_t len = sp ? size_t(sp - p) : strlen(p);
+        words[wi++].assign(p, len);
+        p = sp ? sp + 1 : p + len;
+    }
+
+    uint8_t key[32];
+    polyseed_keygen(seed, POLYSEED_MONERO, 32, key);
+    xmr_address_from_key(key, addr);
+
+    memzero(key, sizeof(key));
+    memzero(phrase, sizeof(phrase));
+    polyseed_free(seed);
     return true;
 }
 

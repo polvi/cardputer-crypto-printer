@@ -70,8 +70,14 @@ the public addresses come back for the QR screen.
 >   stub made trezor's side-channel Z-blinding loop forever; a real RNG fixes it.
 >   The **sim** uses the fixed 24-word test mnemonic and shows the real addresses
 >   it derives.
-> - **XMR — format done, keygen pending.** Still a placeholder address; the
->   polyseed phase adds the polyseed lib + Monero stack (ed25519/keccak/base58).
+> - **XMR — real, on-device** (`lib/polyseed` + trezor's Monero module). SAR-ADC
+>   entropy → 16-word **polyseed** → PBKDF2 key → Monero spend/view → ed25519
+>   pubkeys → `4…` address (monero base58). The polyseed→key→address chain was
+>   **verified natively**: polyseed decodes (canonical lib), and the key→address
+>   step matches `docs/keyprint.go` byte-for-byte (its own Monero scheme), e.g.
+>   `raven tail swear … language` → `47AjPj7DVPQVGGXJXbbTMZWcKQDejGHYZ…AuRf`.
+>   The sim shows that phrase + address. *Final acceptance: restore a printed
+>   polyseed into a real Monero wallet and confirm it matches the QR.*
 
 ## Printer link
 

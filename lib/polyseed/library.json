@@ -1,0 +1,11 @@
+{
+  "name": "polyseed",
+  "version": "vendored-master-en",
+  "description": "tevador/polyseed (Monero 16-word seed), English-only. Crypto deps are injected at runtime (PBKDF2/randbytes/memzero), so this builds standalone.",
+  "license": "BSD-3-Clause",
+  "platforms": ["espressif32"],
+  "build": {
+    "srcFilter": ["+<*.c>"],
+    "flags": ["-I.", "-std=gnu99", "-w"]
+  }
+}

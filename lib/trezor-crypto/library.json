@@ -5,12 +5,15 @@
   "license": "MIT",
   "platforms": ["espressif32"],
   "build": {
-    "srcFilter": ["+<*.c>", "+<ed25519-donna/*.c>"],
+    "srcFilter": ["+<*.c>", "+<ed25519-donna/*.c>", "+<monero/*.c>"],
     "flags": [
       "-I.",
       "-Iaes",
       "-Ied25519-donna",
+      "-Imonero",
       "-DUSE_BIP32_25519_CURVES=0",
+      "-DUSE_MONERO=1",
+      "-DUSE_KECCAK=1",
       "-std=gnu99",
       "-w"
     ]
