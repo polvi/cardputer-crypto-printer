@@ -37,8 +37,10 @@ bool wallet_generate(std::array<std::string, 24> &words, std::string &btc, std::
         "abandon", "abandon", "abandon", "abandon", "abandon", "art",
     };
     for (int i = 0; i < 24; ++i) words[i] = kTest[i];
-    btc = "bc1qsimulatoraddressplaceholderonlyq8z306"; // SIM placeholder (not real)
-    eth = "0xSiMuLaToRPlaceholderAddr0000000000000000"; // SIM placeholder (not real)
+    // Real addresses for this exact test mnemonic (verified natively with trezor);
+    // the device derives these from the same seed.
+    btc = "bc1qzmtrqsfuaf6l6kkcsseumq26ukaphfj9skkug6";
+    eth = "0xF278cF59F82eDcf871d630F28EcC8056f25C1cdb";
     return true;
 }
 

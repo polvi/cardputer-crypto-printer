@@ -59,18 +59,19 @@ the printer, and `secure_zero`'d before the call returns. It never enters
 `UiState`, is never shown on screen, and never persists across interactions; only
 the public addresses come back for the QR screen.
 
-> **Key-generation status.** The C330 **print format is complete and verified**
-> for both BTC+ETH (BIP39) and XMR (polyseed). Real key *generation* is **not yet
-> wired**: the simulator (and unflashed device) use fixed test seeds — the BIP39
-> test mnemonic and the canonical polyseed test phrase — with placeholder
-> addresses, so the format/flow are exercisable. It lives behind the
-> `WALLET_REAL_CRYPTO` seam pending the crypto foundation:
-> - **BTC+ETH**: trezor-crypto closure was resolved, but its EC math hung under
->   native verification, so it's unshipped pending on-hardware verification.
-> - **XMR**: needs the polyseed lib (`tevador/polyseed`, PBKDF2-HMAC-SHA256) plus
->   a Monero stack (ed25519 / keccak-256 / monero base58 / sc_reduce).
->
-> SAR-ADC entropy (`bootloader_random_enable`) wires in at the same point.
+> **Key-generation status.**
+> - **BTC+ETH — real, on-device** (`src/wallet_crypto.cpp`, vendored
+>   `lib/trezor-crypto`). 32 bytes of SAR-ADC entropy (`bootloader_random_enable`,
+>   no RF, so the air-gap holds) → BIP39 24-word mnemonic → seed → BTC BIP84
+>   (`bc1…`) + ETH BIP44 (EIP-55). **Verified natively** against the canonical
+>   BIP39 test vector before wiring (12-word `abandon…about` →
+>   `bc1qcr8te4kr609gcawutmrza0j4xv80jy8z306fyu` / `0x9858EfFD…`, exact match).
+>   The earlier "trezor EC hang" was a self-inflicted bug — a zero-returning RNG
+>   stub made trezor's side-channel Z-blinding loop forever; a real RNG fixes it.
+>   The **sim** uses the fixed 24-word test mnemonic and shows the real addresses
+>   it derives.
+> - **XMR — format done, keygen pending.** Still a placeholder address; the
+>   polyseed phase adds the polyseed lib + Monero stack (ed25519/keccak/base58).
 
 ## Printer link
 
