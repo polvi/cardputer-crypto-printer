@@ -82,6 +82,12 @@ static int SDLCALL event_watch(void *, SDL_Event *e) {
 
 void setup(void) {
     g_display.init();
+
+    // M5GFX's SDL panel has built-in debug shortcuts that default to NO modifier:
+    // plain 'r'/'l' rotate the window and '1'-'6' rescale it (Panel_sdl.cpp).
+    // Those collide with normal typing, so require Cmd to be held for them.
+    lgfx::Panel_sdl::setShortcutKeymod(KMOD_GUI);
+
     SDL_StartTextInput();
     SDL_AddEventWatch(event_watch, nullptr);
 
