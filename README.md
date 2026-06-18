@@ -38,11 +38,15 @@ both the device and the desktop simulator:
 ### Crypto / printer seam (`src/wallet.h` / `wallet.cpp`)
 
 `generate_and_print_wallet(type, label, sink, out_public)` is the security
-boundary: the private key is generated, composed into the print payload, handed
-to the printer sink, and **zeroized before the function returns**. It is never
-returned to the caller and never stored in `UiState` — only the public key comes
-back. Real key generation and the real C330 layout drop in here later without
-touching `ui.cpp` or the front-ends. (Today these are clearly-marked stubs.)
+boundary. It models an **HD wallet (BIP32/39/44)**: one **seed** is generated,
+and each chain's public address is **derived** from it (BTC at `m/44'/0'/0'/0/0`,
+ETH at `m/44'/60'/0'/0/0`). The seed — the only private material — is composed
+into the print payload, handed to the printer sink, and **zeroized before the
+function returns**. It is never returned to the caller and never stored in
+`UiState`; only the derived **public** addresses come back (one per chain), which
+the result screen shows as one QR each. Real BIP39/derivation and the real C330
+layout drop in here later without touching `ui.cpp` or the front-ends. (Today the
+seed/derivation are clearly-marked stubs.)
 
 ## Printer link
 
