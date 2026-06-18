@@ -87,15 +87,19 @@ brew install sdl2          # one-time
 pio run -e sim -t exec     # build + open the window
 ```
 
-In the window: type to edit, **←/→** move the caret, **↑/↓** jump to start/end,
-**Backspace** deletes, **Esc** clears, **Enter** "sends" — which prints the
-exact framed bytes (`<TEXT>\r\n`) to the terminal so you can watch the protocol
-output. The same `ui_*` code runs unchanged on the device.
+In the window: type to edit, move the caret with the arrows, **Backspace**
+deletes, **Esc** clears, **Enter** "sends" — which prints the exact framed bytes
+(`<TEXT>\r\n`) to the terminal so you can watch the protocol output. The same
+`ui_*` code runs unchanged on the device.
+
+**Arrow keys.** The real Cardputer has no arrow keys — it uses **Fn + `;`(up)
+`,`(left) `.`(down) `/`(right)**. macOS can't expose the hardware Fn key to SDL,
+so the sim uses **Option (⌥) as Fn**: hold ⌥ and press `;,./`. The desktop arrow
+keys also work in the sim for convenience. (The device uses the real Fn chord.)
 
 > The simulator covers the **screen + keyboard UI** only. The USB-host→FTDI link
 > to the C330 has no emulator and is exercised on real hardware (or a bench
-> USB-serial adapter). On the device, arrow keys still need a key mapping — the
-> Cardputer matrix has no dedicated arrow flags (noted in `src/main.cpp`).
+> USB-serial adapter).
 
 ## Usage
 

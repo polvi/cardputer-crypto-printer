@@ -226,13 +226,27 @@ void loop() {
         Keyboard_Class::KeysState st = M5Cardputer.Keyboard.keysState();
 
         for (auto c : st.word) {
+            // The Cardputer has no dedicated arrow keys: Fn + ; , . / is the
+            // arrow cluster. While Fn is held, map those to arrows instead of
+            // typing them.
+            if (st.fn) {
+                InputKey k = InputKey::None;
+                switch (c) {
+                    case ';': k = InputKey::Up;    break;
+                    case '.': k = InputKey::Down;  break;
+                    case ',': k = InputKey::Left;  break;
+                    case '/': k = InputKey::Right; break;
+                    default:  break;
+                }
+                if (k != InputKey::None) {
+                    if (ui_handle_input(g_ui, {k, 0})) dirty = true;
+                }
+                continue; // don't type characters while Fn is held
+            }
             if (ui_handle_input(g_ui, {InputKey::Char, c})) dirty = true;
         }
         if (st.del   && ui_handle_input(g_ui, {InputKey::Backspace, 0})) dirty = true;
         if (st.enter && ui_handle_input(g_ui, {InputKey::Enter, 0}))     dirty = true;
-        // NOTE: the Cardputer key matrix has no dedicated arrow flags. Arrow
-        // events (used by the sim today) can be mapped here from fn+key combos
-        // once the exact on-hardware keycodes are confirmed.
     }
 
     if (dirty) ui_render(M5Cardputer.Display, g_ui);

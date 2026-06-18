@@ -52,31 +52,61 @@ static bool sim_send(const char *data, unsigned len) {
     return true;
 }
 
+// The Cardputer has no arrow keys: Fn + ; , . / is the arrow cluster. macOS
+// doesn't expose the hardware Fn key to SDL, so in the sim we use Option (Alt)
+// as the Fn stand-in. (Desktop arrow keys also work, for convenience.)
+static bool g_fn_held = false; // Alt held -> acts as Cardputer Fn
+
 // Observe every SDL event without consuming it from M5GFX's own event pump.
 // SDL_TEXTINPUT gives us shifted/layout-correct characters; SDL_KEYDOWN gives
 // us the non-text keys (Enter, Backspace, arrows, Esc).
 static int SDLCALL event_watch(void *, SDL_Event *e) {
-    if (e->type == SDL_TEXTINPUT) {
-        for (const char *p = e->text.text; *p; ++p) {
-            if ((unsigned char)*p >= 0x20) push_event({InputKey::Char, *p});
-        }
+    switch (e->type) {
+        case SDL_KEYUP:
+            if (e->key.keysym.sym == SDLK_LALT || e->key.keysym.sym == SDLK_RALT) {
+                g_fn_held = false;
+            }
+            return 0;
+
+        case SDL_TEXTINPUT:
+            if (g_fn_held) return 0; // Fn chord held: don't type the character
+            for (const char *p = e->text.text; *p; ++p) {
+                if ((unsigned char)*p >= 0x20) push_event({InputKey::Char, *p});
+            }
+            return 0;
+
+        case SDL_KEYDOWN:
+            break; // handled below
+
+        default:
+            return 0;
+    }
+
+    if (e->key.keysym.sym == SDLK_LALT || e->key.keysym.sym == SDLK_RALT) {
+        g_fn_held = true;
         return 0;
     }
-    if (e->type == SDL_KEYDOWN) {
-        InputEvent ev;
-        switch (e->key.keysym.sym) {
-            case SDLK_RETURN:
-            case SDLK_KP_ENTER:  ev = {InputKey::Enter, 0};     break;
-            case SDLK_BACKSPACE: ev = {InputKey::Backspace, 0}; break;
-            case SDLK_LEFT:      ev = {InputKey::Left, 0};      break;
-            case SDLK_RIGHT:     ev = {InputKey::Right, 0};     break;
-            case SDLK_UP:        ev = {InputKey::Up, 0};        break;
-            case SDLK_DOWN:      ev = {InputKey::Down, 0};      break;
-            case SDLK_ESCAPE:    ev = {InputKey::Esc, 0};       break;
-            default:             return 0;
-        }
-        push_event(ev);
+
+    const bool fn = g_fn_held || (e->key.keysym.mod & KMOD_ALT);
+    InputEvent ev;
+    switch (e->key.keysym.sym) {
+        // Cardputer Fn + ; , . / arrow cluster (Fn = Option in the sim)
+        case SDLK_SEMICOLON: if (!fn) return 0; ev = {InputKey::Up, 0};    break;
+        case SDLK_PERIOD:    if (!fn) return 0; ev = {InputKey::Down, 0};  break;
+        case SDLK_COMMA:     if (!fn) return 0; ev = {InputKey::Left, 0};  break;
+        case SDLK_SLASH:     if (!fn) return 0; ev = {InputKey::Right, 0}; break;
+        // Desktop arrow keys, for convenience
+        case SDLK_UP:        ev = {InputKey::Up, 0};        break;
+        case SDLK_DOWN:      ev = {InputKey::Down, 0};      break;
+        case SDLK_LEFT:      ev = {InputKey::Left, 0};      break;
+        case SDLK_RIGHT:     ev = {InputKey::Right, 0};     break;
+        case SDLK_RETURN:
+        case SDLK_KP_ENTER:  ev = {InputKey::Enter, 0};     break;
+        case SDLK_BACKSPACE: ev = {InputKey::Backspace, 0}; break;
+        case SDLK_ESCAPE:    ev = {InputKey::Esc, 0};       break;
+        default:             return 0;
     }
+    push_event(ev);
     return 0;
 }
 
