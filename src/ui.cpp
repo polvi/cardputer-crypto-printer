@@ -1,7 +1,13 @@
 #include "ui.h"
 #include "wallet.h"
+#include "c330_format.h"
 
 #include <cstdio>
+
+// Map the UI wallet type to the C330 format module's kind.
+static c330::WalletKind kind_of(WalletType w) {
+    return w == WalletType::XMR ? c330::WalletKind::Xmr : c330::WalletKind::BtcEth;
+}
 
 // ============================================================================
 // Wallet names
@@ -26,7 +32,7 @@ void ui_init(UiState &s, SendFn send, const char *status) {
     s.cursor    = 0;
     s.connected = false;
     s.screen    = Screen::Select;
-    s.wallet    = WalletType::BTC;
+    s.wallet    = WalletType::BTC_ETH;
     s.pubkeys.clear();
 }
 
@@ -43,10 +49,9 @@ static bool handle_select(UiState &s, const InputEvent &ev) {
     if (ev.key != InputKey::Char) return false;
     WalletType w;
     switch (ev.ch) {
-        case '1': w = WalletType::BTC;     break;
-        case '2': w = WalletType::ETH;     break;
-        case '3': w = WalletType::BTC_ETH; break;
-        case '4': w = WalletType::XMR;     break;
+        case '1': w = WalletType::BTC_ETH; break;
+        case '2': w = WalletType::XMR;     break;
+        // Solo BTC/ETH are hidden until their crypto is implemented.
         default:  return false;
     }
     s.wallet = w;
@@ -180,11 +185,11 @@ static void render_select(lgfx::LGFX_Device &d, const UiState &) {
     d.setCursor(4, 4);
     d.print("Crypto Wallet");
 
-    static const char *opts[4] = {"1 BTC", "2 ETH", "3 BTC+ETH", "4 XMR"};
+    static const char *opts[2] = {"1 BTC+ETH", "2 XMR"};
     d.setTextSize(2);
     d.setTextColor(TFT_WHITE, TFT_BLACK);
-    for (int i = 0; i < 4; ++i) {
-        d.setCursor(8, 30 + i * 22);
+    for (int i = 0; i < 2; ++i) {
+        d.setCursor(8, 34 + i * 26);
         d.print(opts[i]);
     }
 }
@@ -221,17 +226,25 @@ static void render_confirm(lgfx::LGFX_Device &d, const UiState &s) {
 
     d.setTextSize(2);
     d.setTextColor(TFT_WHITE, TFT_BLACK);
-    d.setCursor(4, 34);
-    d.print("Type: ");
+    d.setCursor(4, 28);
     d.print(wallet_name(s.wallet));
 
-    d.setCursor(4, 60);
-    d.print("Label:");
+    // Per-key details — the same lines embossed on the info plate.
+    d.setTextSize(1);
+    d.setTextColor(TFT_DARKGREY, TFT_BLACK);
+    int y = 52;
+    for (const auto &line : c330::wallet_info_lines(kind_of(s.wallet))) {
+        d.setCursor(8, y);
+        d.print(line.c_str());
+        y += 10;
+    }
 
     // Label value (up to 24 chars) at size 1 so it always fits the width.
-    d.setTextSize(1);
+    y += 4;
+    d.setTextColor(TFT_WHITE, TFT_BLACK);
+    d.setCursor(4, y);
+    d.print("Label: ");
     d.setTextColor(TFT_YELLOW, TFT_BLACK);
-    d.setCursor(12, 84);
     d.print(s.buffer.empty() ? "(none)" : s.buffer.c_str());
 }
 

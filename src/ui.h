@@ -71,7 +71,7 @@ struct UiState {
 
     // --- screen machine ---
     Screen      screen = Screen::Select;
-    WalletType  wallet = WalletType::BTC;
+    WalletType  wallet = WalletType::BTC_ETH;
 
     // --- result: PUBLIC keys only. No private-key field ever lives here. ---
     std::vector<PubKey> pubkeys;

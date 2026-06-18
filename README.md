@@ -24,26 +24,28 @@ cannot be brought up at all — critical for a device that handles key material.
 A screen state machine (`src/ui.cpp`), hardware-independent so it runs on both
 the device and the desktop simulator:
 
-1. **Select** — choose a wallet type with a number key: `1` BTC, `2` ETH,
-   `3` BTC+ETH, `4` XMR. (Crypto is BTC+ETH for now; see status below.)
+1. **Select** — choose a wallet type with a number key: `1` BTC+ETH, `2` XMR.
+   (Solo BTC/ETH are hidden until their crypto is wired; see status below.)
 2. **Label** — optionally type a label (max 24 chars), editable with the arrow
    caret. Enter continues, Esc goes back.
-3. **Confirm** — shows the chosen wallet type and label. **Press the top G0
-   button once** and the whole wallet is printed (Esc goes back to edit).
+3. **Confirm** — shows the wallet name, the **per-key details** (the same lines as
+   the info plate, e.g. "MONERO / 16 WORD POLYSEED / ACCOUNT NUMBER 0"), and the
+   label. **Press the top G0 button once** to print the whole wallet.
 4. **Printing** — generates the wallet and streams every plate to the C330.
-5. **Result** — the **public addresses** are shown as **QR codes** (BTC + ETH,
-   side by side) for capture. Any key wipes them and returns to Select.
+5. **Result** — the **public address(es)** are shown as **QR codes** (BTC + ETH
+   side by side, or a single XMR QR) for capture. Any key returns to Select.
 
 ### What gets printed (`src/c330_format.{h,cpp}`)
 
 One G0 press emboss-prints the full wallet as a stack of metal plates, in the
-exact format and order of the reference tool `docs/keyprint.go` (verified
-byte-for-byte against it):
+format/order of the reference tool `docs/keyprint.go` (verified against it):
 
-1. **Derivation/BIP info** (`]F0`): "POLVI HD WALLET / 24 WORD BIP32 MNEMONIC /
-   BTC BIP84 PATH M/84'/0'/0'/0/0 / ETH BIP44 PATH M/44'/60'/0'/0/0".
-2. **Mnemonic words 13-24** (`]F2`) and **1-12** (`]F1`) — two words per line.
-3. **Public-key page** (`]F3`): "MINTED ON <date>" + the BTC and ETH addresses.
+- **BTC+ETH** (one 24-word BIP39 seed): info `]F0` ("POLVI HD WALLET / 24 WORD
+  BIP32 MNEMONIC / BTC BIP84 PATH … / ETH BIP44 PATH …") → mnemonic 13-24 `]F2` →
+  1-12 `]F1` → addresses `]F3` (BTC + ETH).
+- **XMR** (16-word **polyseed**): info `]F0` ("POLVI HD WALLET / MONERO / 16 WORD
+  POLYSEED / ACCOUNT NUMBER 0") → polyseed 9-16 `]F2` → 1-8 `]F1` → monero address
+  `]F3` (95 chars split across four hyphenated lines).
 
 The C330 drum is uppercase-only (≤26 chars/line); mixed-case addresses are
 embossed by stacking two rows 7 units apart, so case is recovered by vertical
@@ -57,15 +59,18 @@ the printer, and `secure_zero`'d before the call returns. It never enters
 `UiState`, is never shown on screen, and never persists across interactions; only
 the public addresses come back for the QR screen.
 
-> **Key-generation status.** The C330 **print format is complete and verified**.
-> Real HD key generation (trezor-crypto on-device) is **not yet wired**: the
-> simulator (and the unflashed device) use a fixed BIP39 test mnemonic with
-> placeholder addresses so the format/flow are exercisable. The trezor-crypto
-> vendoring closure was resolved (BTC+ETH only: `USE_BIP32_25519_CURVES=0`,
-> precomputed `.table`s), but its EC math hung under native verification and was
-> not shippable unverified — so it lives behind the `WALLET_REAL_CRYPTO` seam
-> pending resolution + on-hardware verification. SAR-ADC entropy
-> (`bootloader_random_enable`) wires in at the same point.
+> **Key-generation status.** The C330 **print format is complete and verified**
+> for both BTC+ETH (BIP39) and XMR (polyseed). Real key *generation* is **not yet
+> wired**: the simulator (and unflashed device) use fixed test seeds — the BIP39
+> test mnemonic and the canonical polyseed test phrase — with placeholder
+> addresses, so the format/flow are exercisable. It lives behind the
+> `WALLET_REAL_CRYPTO` seam pending the crypto foundation:
+> - **BTC+ETH**: trezor-crypto closure was resolved, but its EC math hung under
+>   native verification, so it's unshipped pending on-hardware verification.
+> - **XMR**: needs the polyseed lib (`tevador/polyseed`, PBKDF2-HMAC-SHA256) plus
+>   a Monero stack (ed25519 / keccak-256 / monero base58 / sc_reduce).
+>
+> SAR-ADC entropy (`bootloader_random_enable`) wires in at the same point.
 
 ## Printer link
 
@@ -166,7 +171,7 @@ so the sim uses **Option (⌥) as Fn**. Likewise the **G0 print button** maps to
 | `platformio.ini` | Two envs: `m5stack-cardputer` (firmware) + `sim` (desktop UI) |
 | `sdkconfig.defaults` | IDF settings: 1000 Hz tick, C++ exceptions, Arduino autostart, BT off |
 | `src/ui.h` / `src/ui.cpp` | Hardware-independent UI: screen state machine, input, rendering |
-| `src/c330_format.h` / `.cpp` | C330 plate format ported from `keyprint.go` (layout, case-stacking) |
+| `src/c330_format.h` / `.cpp` | C330 plate format (BTC+ETH BIP39 + XMR polyseed), per-key info lines |
 | `src/wallet.h` / `src/wallet.cpp` | Security seam: generate → emboss → zeroize; key-gen behind `WALLET_REAL_CRYPTO` |
 | `src/main.cpp` | Device front-end: keyboard + G0 button + USB-host FTDI bridge + Xon/Xoff |
 | `src/sim_main.cpp` | Desktop front-end: SDL window + Mac keyboard + Space=print |

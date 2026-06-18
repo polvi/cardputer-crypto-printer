@@ -65,45 +65,31 @@ std::string mx_message(const std::string &s) {
 }
 
 // ---------------------------------------------------------------------------
-std::string plate_info() {
-    static const char *kInfo =
-        "\n<]F0 SY540SX860\n"
-        "Y050X100 CI10\n"
-        "Y125X100 CI10\n"
-        "Y200X100 CI10\n"
-        "Y275X100 CI10\n"
-        "Y350X100 CI10\n"
-        "Y425X100 CI10>\n"
-        "\n"
-        "<POLVI HD WALLET\n"
-        "24 WORD BIP32 MNEMONIC\n"
-        "BTC BIP84 PATH\n"
-        "M/84'/0'/0'/0/0\n"
-        "ETH BIP44 PATH\n"
-        "M/44'/60'/0'/0/0>\n";
-    return to_upper(kInfo);
-}
-
 namespace {
 
-// Two words per line, "%2d %-11s%2d %s", 6 lines for a 12-word half.
-std::string mnemonic_plate(char fmt, const std::array<std::string, 24> &w, int off) {
-    std::string out =
-        std::string("\n<]F") + fmt + " SY540SX860\n"
-        "Y050X100 CI10\n"
-        "Y125X100 CI10\n"
-        "Y200X100 CI10\n"
-        "Y275X100 CI10\n"
-        "Y350X100 CI10\n"
-        "Y425X100 CI10>\n"
-        "\n<";
-    for (int i = 0; i < 12; i += 2) {
+// `n` coordinate lines, Y050 then +75 each, all at X100.
+std::string layout_rows(int n) {
+    std::string s;
+    for (int i = 0, y = 50; i < n; ++i, y += 75) {
+        char l[24];
+        snprintf(l, sizeof(l), "Y%03dX100 CI10", y);
+        s += l;
+        if (i < n - 1) s += "\n";
+    }
+    return s;
+}
+
+// Two words per line, "%2d %-<pad>s%2d %s", count/2 lines starting at word `start`.
+std::string word_plate(char fmt, const std::string *w, int start, int count, int pad) {
+    std::string out = std::string("\n<]F") + fmt + " SY540SX860\n" +
+                      layout_rows(count / 2) + ">\n\n<";
+    for (int i = 0; i < count; i += 2) {
         char line[48];
-        snprintf(line, sizeof(line), "%2d %-11s%2d %s",
-                 off + i + 1, w[off + i].c_str(),
-                 off + i + 2, w[off + i + 1].c_str());
+        snprintf(line, sizeof(line), "%2d %-*s%2d %s",
+                 start + i + 1, pad, w[start + i].c_str(),
+                 start + i + 2, w[start + i + 1].c_str());
         out += line;
-        if (i < 10) out += "\n";
+        if (i < count - 2) out += "\n";
     }
     out += ">\n";
     return to_upper(out);
@@ -111,11 +97,38 @@ std::string mnemonic_plate(char fmt, const std::array<std::string, 24> &w, int o
 
 } // namespace
 
+std::vector<std::string> wallet_info_lines(WalletKind k) {
+    if (k == WalletKind::Xmr)
+        return {"MONERO", "16 WORD POLYSEED", "ACCOUNT NUMBER 0"};
+    return {"24 WORD BIP32 MNEMONIC", "BTC BIP84 PATH", "M/84'/0'/0'/0/0",
+            "ETH BIP44 PATH", "M/44'/60'/0'/0/0"};
+}
+
+std::string plate_info(WalletKind k) {
+    std::vector<std::string> lines = wallet_info_lines(k);
+    lines.insert(lines.begin(), "POLVI HD WALLET");
+    std::string text;
+    for (size_t i = 0; i < lines.size(); ++i) {
+        text += lines[i];
+        if (i + 1 < lines.size()) text += "\n";
+    }
+    std::string out = "\n<]F0 SY540SX860\n" + layout_rows((int)lines.size()) +
+                      ">\n\n<" + text + ">\n";
+    return to_upper(out);
+}
+
 std::string plate_mnemonic_1_12(const std::array<std::string, 24> &words) {
-    return mnemonic_plate('1', words, 0);
+    return word_plate('1', words.data(), 0, 12, 11);
 }
 std::string plate_mnemonic_13_24(const std::array<std::string, 24> &words) {
-    return mnemonic_plate('2', words, 12);
+    return word_plate('2', words.data(), 12, 12, 11);
+}
+
+std::string plate_polyseed_1_8(const std::array<std::string, 16> &words) {
+    return word_plate('1', words.data(), 0, 8, 9);
+}
+std::string plate_polyseed_9_16(const std::array<std::string, 16> &words) {
+    return word_plate('2', words.data(), 8, 8, 9);
 }
 
 std::string plate_addresses(const std::string &btc, const std::string &eth,
@@ -147,6 +160,33 @@ std::string plate_addresses(const std::string &btc, const std::string &eth,
 
     std::string out = "\n<]F3 SY540SX860\n" + layout + ">\n\n<" + text + ">\n";
     return to_upper(out); // drum is uppercase; case is encoded by row position
+}
+
+std::string plate_xmr_address(const std::string &addr, const std::string &header,
+                              const std::string &message, const std::string &date) {
+    // The 95-char monero address split into 4 hyphen-joined lines (22/24/24/25)
+    // per keyprint.go PKey_XMR_Addr_Message2..5; mixed-case -> row-stacking.
+    const std::string MNT = mx_message(to_upper("MINTED ON " + date));
+    const std::string MSG = mx_message(to_upper(message));
+    const std::string m2 = mx_message(to_upper(header) + addr.substr(0, 22) + "-");
+    const std::string m3 = mx_message("-" + (addr.size() > 22 ? addr.substr(22, 24) : std::string()) + "-");
+    const std::string m4 = mx_message("-" + (addr.size() > 46 ? addr.substr(46, 24) : std::string()) + "-");
+    const std::string m5 = mx_message("-" + (addr.size() > 70 ? addr.substr(70) : std::string()));
+
+    const std::string layout_msgs[6] = {MNT, MSG, m2, m3, m4, m5};
+    std::string layout;
+    for (int i = 0, y = 50; i < 6; ++i, y += 75) {
+        layout += mx_layout(layout_msgs[i], y, 100);
+        if (i < 5) layout += "\n";
+    }
+    const std::string text_msgs[6] = {MSG, MNT, m2, m3, m4, m5};
+    std::string text;
+    for (int i = 0; i < 6; ++i) {
+        text += text_msgs[i];
+        if (i < 5) text += "\n";
+    }
+    std::string out = "\n<]F3 SY540SX860\n" + layout + ">\n\n<" + text + ">\n";
+    return to_upper(out);
 }
 
 } // namespace c330

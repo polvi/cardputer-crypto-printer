@@ -2,11 +2,13 @@
 #include "c330_format.h"
 
 #include <array>
+#include <vector>
 
 #if defined(WALLET_REAL_CRYPTO)
-// Real HD-wallet derivation on the device. See wallet_crypto.cpp / the
-// trezor-crypto integration; declared here, defined in the device-only path.
+// Real derivation on the device (behind the crypto foundation). Declared here,
+// defined in the device-only path.
 bool wallet_generate(std::array<std::string, 24> &words, std::string &btc, std::string &eth);
+bool wallet_generate_xmr(std::array<std::string, 16> &words, std::string &addr);
 #endif
 
 namespace {
@@ -23,11 +25,12 @@ void secure_zero(std::string &s) {
 const char *kMintDate = "2026-01-01";
 
 #if !defined(WALLET_REAL_CRYPTO)
-// Simulator / no-crypto build: a fixed BIP39 256-bit all-zero test mnemonic so the
-// mnemonic plates are exactly correct, plus PLACEHOLDER addresses (not derived) so
-// the address-page format can be exercised. Real addresses come from the device.
+// Simulator / no-crypto build: fixed test seeds so the mnemonic plates are exactly
+// correct, plus PLACEHOLDER addresses (not derived) so the address-page format can
+// be exercised. Real addresses come from the device crypto path.
+
 bool wallet_generate(std::array<std::string, 24> &words, std::string &btc, std::string &eth) {
-    static const char *kTest[24] = {
+    static const char *kTest[24] = { // BIP39 256-bit all-zero test mnemonic
         "abandon", "abandon", "abandon", "abandon", "abandon", "abandon",
         "abandon", "abandon", "abandon", "abandon", "abandon", "abandon",
         "abandon", "abandon", "abandon", "abandon", "abandon", "abandon",
@@ -38,38 +41,70 @@ bool wallet_generate(std::array<std::string, 24> &words, std::string &btc, std::
     eth = "0xSiMuLaToRPlaceholderAddr0000000000000000"; // SIM placeholder (not real)
     return true;
 }
+
+bool wallet_generate_xmr(std::array<std::string, 16> &words, std::string &addr) {
+    static const char *kPoly[16] = { // canonical polyseed test phrase
+        "raven", "tail", "swear", "infant", "grief", "assist", "regular", "lamp",
+        "duck", "valid", "someone", "little", "harsh", "puppy", "airport", "language",
+    };
+    for (int i = 0; i < 16; ++i) words[i] = kPoly[i];
+    addr = "4PLACEHOLDERmoneroSIMaddressNOTrealDOnotSEND"; // SIM placeholder (not real)
+    while (addr.size() < 95) addr += "x";
+    addr.resize(95);
+    return true;
+}
 #endif
 
-} // namespace
+// Stream every plate via the sink, then zeroize all plate buffers (the mnemonic
+// plates carry the secret). Returns false if a send failed.
+bool send_plates(std::vector<std::string> &plates, SendFn sink) {
+    bool ok = true;
+    for (auto &p : plates)
+        if (ok) ok = sink && sink(p.data(), (unsigned)p.size());
+    for (auto &p : plates) secure_zero(p);
+    return ok;
+}
 
-bool wallet_print(WalletType /*type*/, const std::string &label,
-                  SendFn sink, WalletPublic &out_public) {
-    // BTC+ETH only for now (XMR deferred); any selection prints the BTC+ETH wallet.
+// BTC+ETH (one 24-word BIP39 seed): info, mnemonic 13-24, mnemonic 1-12, addresses.
+bool print_btceth(const std::string &label, SendFn sink, WalletPublic &out) {
     std::array<std::string, 24> words;
     std::string btc, eth;
     if (!wallet_generate(words, btc, eth)) return false;
-
-    out_public.keys.clear();
-    out_public.keys.push_back({"BTC", btc});
-    out_public.keys.push_back({"ETH", eth});
-
-    // Compose the four plates in keyprint.go send order. plate_mnemonic_* uppercase
-    // the (lowercase) BIP39 words for the drum.
-    std::string plates[4] = {
-        c330::plate_info(),                                              // str0 (F0)
-        c330::plate_mnemonic_13_24(words),                              // str1 (F2)
-        c330::plate_mnemonic_1_12(words),                               // str2 (F1)
-        c330::plate_addresses(btc, eth, "BTC", "ETH", label, kMintDate) // str3 (F3)
+    out.keys.push_back({"BTC", btc});
+    out.keys.push_back({"ETH", eth});
+    std::vector<std::string> plates = {
+        c330::plate_info(c330::WalletKind::BtcEth),
+        c330::plate_mnemonic_13_24(words),
+        c330::plate_mnemonic_1_12(words),
+        c330::plate_addresses(btc, eth, "BTC", "ETH", label, kMintDate),
     };
-
-    bool ok = true;
-    for (int i = 0; i < 4 && ok; ++i) {
-        ok = sink && sink(plates[i].data(), (unsigned)plates[i].size());
-    }
-
-    // Private material must not outlive this call: the mnemonic words and the
-    // mnemonic plate payloads (plates[1], plates[2]) carry the secret. Wipe all.
+    bool ok = send_plates(plates, sink);
     for (auto &w : words) secure_zero(w);
-    for (auto &p : plates) secure_zero(p);
     return ok;
+}
+
+// XMR (16-word polyseed): info, polyseed 9-16, polyseed 1-8, monero address.
+bool print_xmr(const std::string &label, SendFn sink, WalletPublic &out) {
+    std::array<std::string, 16> words;
+    std::string addr;
+    if (!wallet_generate_xmr(words, addr)) return false;
+    out.keys.push_back({"XMR", addr});
+    std::vector<std::string> plates = {
+        c330::plate_info(c330::WalletKind::Xmr),
+        c330::plate_polyseed_9_16(words),
+        c330::plate_polyseed_1_8(words),
+        c330::plate_xmr_address(addr, "XMR", label, kMintDate),
+    };
+    bool ok = send_plates(plates, sink);
+    for (auto &w : words) secure_zero(w);
+    return ok;
+}
+
+} // namespace
+
+bool wallet_print(WalletType type, const std::string &label,
+                  SendFn sink, WalletPublic &out_public) {
+    out_public.keys.clear();
+    if (type == WalletType::XMR) return print_xmr(label, sink, out_public);
+    return print_btceth(label, sink, out_public); // BTC_ETH (and BTC/ETH) for now
 }
