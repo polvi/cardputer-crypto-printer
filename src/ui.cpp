@@ -230,8 +230,8 @@ static void render_result_single(lgfx::LGFX_Device &d, const PubKey &pk) {
     d.print("PUBLIC KEY - ");
     d.print(pk.chain.c_str());
 
-    const int qr = 100;
-    d.qrcode(pk.key.c_str(), 4, 16, qr, 1, true);
+    const int qr = 102;
+    d.qrcode(pk.key.c_str(), 4, 16, qr, 1, false); // margin=false -> minimal padding
 
     const int tx = 4 + qr + 6;
     const int cols = (d.width() - tx) / 6;
@@ -258,7 +258,7 @@ static void render_result_multi(lgfx::LGFX_Device &d, const std::vector<PubKey> 
         d.print(keys[i].chain.c_str());
 
         const int qx = cx + (cellw - qr) / 2;
-        d.qrcode(keys[i].key.c_str(), qx, 16, qr, 1, true);
+        d.qrcode(keys[i].key.c_str(), qx, 16, qr, 1, false); // margin=false
 
         d.setTextColor(TFT_WHITE, TFT_BLACK);
         d.setCursor(cx + 4, 16 + qr + 2);
