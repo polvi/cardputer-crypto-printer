@@ -32,6 +32,11 @@ std::vector<std::string> wallet_info_lines(WalletKind k);
 // True if every char of `s` is in the C330 set and the line is <= kMaxLine.
 bool validate_line(const std::string &s);
 
+// For label input: returns the uppercased char if it is embossable on the C330
+// (A-Z 0-9 - / . ' , & space), or 0 to reject. Lowercase is folded to uppercase
+// since the drum is uppercase-only (matches keyprint.go's C330CharSet).
+char sanitize_label_char(char c);
+
 // "Y%03dX%03d CI10" — one layout coordinate line.
 std::string yx_layout(int y, int x);
 

@@ -64,11 +64,14 @@ static bool handle_select(UiState &s, const InputEvent &ev) {
 
 static bool handle_label(UiState &s, const InputEvent &ev) {
     switch (ev.key) {
-        case InputKey::Char:
+        case InputKey::Char: {
             if (s.buffer.size() >= LABEL_MAX) return false; // 24-char cap
-            s.buffer.insert(s.buffer.begin() + s.cursor, ev.ch);
+            char c = c330::sanitize_label_char(ev.ch); // uppercase + C330 charset
+            if (!c) return false;                       // reject non-embossable chars
+            s.buffer.insert(s.buffer.begin() + s.cursor, c);
             s.cursor++;
             return true;
+        }
 
         case InputKey::Backspace:
             if (s.cursor == 0) return false;
@@ -98,7 +101,7 @@ static bool handle_label(UiState &s, const InputEvent &ev) {
 
         case InputKey::Enter: // label is optional; may be empty
             s.screen = Screen::Confirm;
-            s.status = "Press button to PRINT   ESC=back";
+            s.status = "G0 or ENTER = print   ESC=back";
             return true;
 
         case InputKey::Esc:
@@ -114,7 +117,8 @@ static bool handle_label(UiState &s, const InputEvent &ev) {
 }
 
 static bool handle_confirm(UiState &s, const InputEvent &ev) {
-    if (ev.key == InputKey::Print) {
+    // Print on the G0 button (device) or Enter (works everywhere, incl. the sim).
+    if (ev.key == InputKey::Print || ev.key == InputKey::Enter) {
         if (!s.connected) {
             s.status = "Printer not connected";
             return true;

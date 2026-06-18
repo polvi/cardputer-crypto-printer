@@ -71,8 +71,7 @@ static int SDLCALL event_watch(void *, SDL_Event *e) {
         case SDL_TEXTINPUT:
             if (g_fn_held) return 0; // Fn chord held: don't type the character
             for (const char *p = e->text.text; *p; ++p) {
-                // Space is the print-button stand-in here, not a typed char.
-                if ((unsigned char)*p > 0x20) push_event({InputKey::Char, *p});
+                if ((unsigned char)*p >= 0x20) push_event({InputKey::Char, *p}); // incl. space
             }
             return 0;
 
@@ -85,12 +84,6 @@ static int SDLCALL event_watch(void *, SDL_Event *e) {
 
     if (e->key.keysym.sym == SDLK_LALT || e->key.keysym.sym == SDLK_RALT) {
         g_fn_held = true;
-        return 0;
-    }
-    if (e->key.keysym.sym == SDLK_SPACE) {
-        // Space is the print button (mirrors the device G0 button): one press
-        // = one Print event. Ignore auto-repeat while the key is held.
-        if (!e->key.repeat) push_event({InputKey::Print, 0});
         return 0;
     }
 

@@ -142,21 +142,21 @@ Walk the whole flow in the window:
 
 | Key (sim) | Action |
 | --- | --- |
-| `1`–`4` | choose wallet type (Select screen) |
-| typing | edit the label (max 24); caret moves with the arrows |
+| `1`–`2` | choose wallet type (BTC+ETH / XMR) |
+| typing | edit the label — folded to uppercase, restricted to the C330 charset (incl. Space) |
 | **⌥ + `;,./`** or desktop arrows | move the caret |
-| **Enter** | Label → Confirm |
-| **Space** | the print button — one press = print (stands in for the device G0) |
+| **Enter** | Label → Confirm, then Confirm → print |
 | **Esc** | go back a screen |
 
-On print, the stub payload prints to the terminal as `TX -> C330: …` and the
-Result screen shows the QR(s) + public key(s). The same `ui_*` code runs
-unchanged on the device.
+On print, the payload prints to the terminal as `TX -> C330: …` and the Result
+screen shows the QR(s) + public key(s). The same `ui_*` code runs unchanged on the
+device (where the **top G0 button** prints, and Enter also works).
 
 **Arrow keys.** The real Cardputer has no arrow keys — it uses **Fn + `;`(up)
 `,`(left) `.`(down) `/`(right)**. macOS can't expose the hardware Fn key to SDL,
-so the sim uses **Option (⌥) as Fn**. Likewise the **G0 print button** maps to
-**Space** in the sim (so Space is not a typeable label character there).
+so the sim uses **Option (⌥) as Fn**. The print button is the device's **G0**;
+in the sim, **Enter on the Confirm screen** prints (so Space stays free for the
+label).
 
 > The simulator covers the **screen + keyboard UI** only. The USB-host→FTDI link
 > to the printer has no emulator and is exercised on real hardware (or a bench
@@ -181,7 +181,7 @@ so the sim uses **Option (⌥) as Fn**. Likewise the **G0 print button** maps to
 | `src/c330_format.h` / `.cpp` | C330 plate format (BTC+ETH BIP39 + XMR polyseed), per-key info lines |
 | `src/wallet.h` / `src/wallet.cpp` | Security seam: generate → emboss → zeroize; key-gen behind `WALLET_REAL_CRYPTO` |
 | `src/main.cpp` | Device front-end: keyboard + G0 button + USB-host FTDI bridge + Xon/Xoff |
-| `src/sim_main.cpp` | Desktop front-end: SDL window + Mac keyboard + Space=print |
+| `src/sim_main.cpp` | Desktop front-end: SDL window + Mac keyboard (Enter prints) |
 | `src/idf_component.yml` | ESP-IDF USB-host components (FTDI/CP210x/CH34x) |
 | `docs/keyprint.go` | Reference Go implementation (key derivation + C330 format) |
 | `docs/` | C330 Operator Manual + Cardputer docs link |

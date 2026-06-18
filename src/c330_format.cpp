@@ -43,6 +43,13 @@ bool validate_line(const std::string &s) {
     return true;
 }
 
+char sanitize_label_char(char c) {
+    char u = (c >= 'a' && c <= 'z') ? char(c - 'a' + 'A') : c;
+    for (const char *p = kCharSet; *p; ++p)
+        if (*p == u) return u;
+    return 0;
+}
+
 std::string yx_layout(int y, int x) {
     char buf[24];
     snprintf(buf, sizeof(buf), "Y%03dX%03d CI10", y, x);
