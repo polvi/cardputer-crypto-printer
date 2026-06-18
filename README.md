@@ -21,42 +21,60 @@ cannot be brought up at all — critical for a device that handles key material.
 
 ## The flow
 
-A four-screen state machine (`src/ui.cpp`), hardware-independent so it runs on
-both the device and the desktop simulator:
+A screen state machine (`src/ui.cpp`), hardware-independent so it runs on both
+the device and the desktop simulator:
 
 1. **Select** — choose a wallet type with a number key: `1` BTC, `2` ETH,
-   `3` BTC+ETH, `4` XMR.
+   `3` BTC+ETH, `4` XMR. (Crypto is BTC+ETH for now; see status below.)
 2. **Label** — optionally type a label (max 24 chars), editable with the arrow
    caret. Enter continues, Esc goes back.
-3. **Confirm** — shows the chosen wallet type and label, and prompts to print.
-   **Press the top G0 button once** to generate + send to the printer. Esc goes
-   back to edit.
-4. **Result** — the **public key** is shown as a **QR code + text** for capture.
-   A multi-key wallet (BTC+ETH) shows **one QR per chain**, side by side. Any key
-   wipes it and returns to Select.
+3. **Confirm** — shows the chosen wallet type and label. **Press the top G0
+   button once** and the whole wallet is printed (Esc goes back to edit).
+4. **Printing** — generates the wallet and streams every plate to the C330.
+5. **Result** — the **public addresses** are shown as **QR codes** (BTC + ETH,
+   side by side) for capture. Any key wipes them and returns to Select.
 
-### Crypto / printer seam (`src/wallet.h` / `wallet.cpp`)
+### What gets printed (`src/c330_format.{h,cpp}`)
 
-`generate_and_print_wallet(type, label, sink, out_public)` is the security
-boundary. It models an **HD wallet (BIP32/39/44)**: one **seed** is generated,
-and each chain's public address is **derived** from it (BTC at `m/44'/0'/0'/0/0`,
-ETH at `m/44'/60'/0'/0/0`). The seed — the only private material — is composed
-into the print payload, handed to the printer sink, and **zeroized before the
-function returns**. It is never returned to the caller and never stored in
-`UiState`; only the derived **public** addresses come back (one per chain), which
-the result screen shows as one QR each. Real BIP39/derivation and the real C330
-layout drop in here later without touching `ui.cpp` or the front-ends. (Today the
-seed/derivation are clearly-marked stubs.)
+One G0 press emboss-prints the full wallet as a stack of metal plates, in the
+exact format and order of the reference tool `docs/keyprint.go` (verified
+byte-for-byte against it):
+
+1. **Derivation/BIP info** (`]F0`): "POLVI HD WALLET / 24 WORD BIP32 MNEMONIC /
+   BTC BIP84 PATH M/84'/0'/0'/0/0 / ETH BIP44 PATH M/44'/60'/0'/0/0".
+2. **Mnemonic words 13-24** (`]F2`) and **1-12** (`]F1`) — two words per line.
+3. **Public-key page** (`]F3`): "MINTED ON <date>" + the BTC and ETH addresses.
+
+The C330 drum is uppercase-only (≤26 chars/line); mixed-case addresses are
+embossed by stacking two rows 7 units apart, so case is recovered by vertical
+position (`mx_message` in `c330_format.cpp`).
+
+### Security seam (`src/wallet.h` / `wallet.cpp`)
+
+`wallet_print(type, label, sink, out_public)` is the boundary: the **mnemonic**
+(the printed secret) is generated, composed into the plate payloads, streamed to
+the printer, and `secure_zero`'d before the call returns. It never enters
+`UiState`, is never shown on screen, and never persists across interactions; only
+the public addresses come back for the QR screen.
+
+> **Key-generation status.** The C330 **print format is complete and verified**.
+> Real HD key generation (trezor-crypto on-device) is **not yet wired**: the
+> simulator (and the unflashed device) use a fixed BIP39 test mnemonic with
+> placeholder addresses so the format/flow are exercisable. The trezor-crypto
+> vendoring closure was resolved (BTC+ETH only: `USE_BIP32_25519_CURVES=0`,
+> precomputed `.table`s), but its EC math hung under native verification and was
+> not shippable unverified — so it lives behind the `WALLET_REAL_CRYPTO` seam
+> pending resolution + on-hardware verification. SAR-ADC entropy
+> (`bootloader_random_enable`) wires in at the same point.
 
 ## Printer link
 
 1. The ESP32-S3 USB host stack (`usb_host_vcp` + `usb_host_ftdi`) opens the
-   C330's FTDI port and configures it to the C330's serial settings:
-   **57600 baud, 8 data bits, no parity, 1 stop bit** (manual §6.2).
-3. On connect it pushes the layout format (the `C330_FORMAT` constant in
-   `src/main.cpp` — edit it for your plate size / line position).
-4. On print, the payload composed by `src/wallet.cpp` is framed as `<…>\r\n` and
-   written to the port (the real engraving layout is still to be defined).
+   C330's FTDI port and configures it to **57600 8N1** (manual §6.2).
+2. On print, all plates stream back-to-back. The firmware honors the C330's
+   **Xon/Xoff** (`main.cpp`): it pauses on XOFF (0x13) and resumes on XON (0x11)
+   so a multi-plate stream never overflows the machine's buffer (error E64).
+   Each plate carries its own `]Fn` layout, so no format pre-load is needed.
 
 ## Hardware / wiring
 
@@ -148,8 +166,10 @@ so the sim uses **Option (⌥) as Fn**. Likewise the **G0 print button** maps to
 | `platformio.ini` | Two envs: `m5stack-cardputer` (firmware) + `sim` (desktop UI) |
 | `sdkconfig.defaults` | IDF settings: 1000 Hz tick, C++ exceptions, Arduino autostart, BT off |
 | `src/ui.h` / `src/ui.cpp` | Hardware-independent UI: screen state machine, input, rendering |
-| `src/wallet.h` / `src/wallet.cpp` | Crypto/printer seam (stubbed); private key zeroized, never retained |
-| `src/main.cpp` | Device front-end: Cardputer keyboard + G0 button + USB-host FTDI bridge |
+| `src/c330_format.h` / `.cpp` | C330 plate format ported from `keyprint.go` (layout, case-stacking) |
+| `src/wallet.h` / `src/wallet.cpp` | Security seam: generate → emboss → zeroize; key-gen behind `WALLET_REAL_CRYPTO` |
+| `src/main.cpp` | Device front-end: keyboard + G0 button + USB-host FTDI bridge + Xon/Xoff |
 | `src/sim_main.cpp` | Desktop front-end: SDL window + Mac keyboard + Space=print |
 | `src/idf_component.yml` | ESP-IDF USB-host components (FTDI/CP210x/CH34x) |
+| `docs/keyprint.go` | Reference Go implementation (key derivation + C330 format) |
 | `docs/` | C330 Operator Manual + Cardputer docs link |

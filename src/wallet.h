@@ -1,15 +1,14 @@
 // Crypto wallet generation + printing seam.
 //
-// This is the security boundary. The PRIVATE key material is born, used (sent to
-// the printer), and zeroized entirely inside generate_and_print_wallet(); it is
-// never returned to the caller and never stored in UiState. Only the public part
-// comes back.
+// This is the security boundary. The PRIVATE material (BIP39 mnemonic + seed) is
+// born, embossed (streamed to the printer), and zeroized entirely inside
+// wallet_print(); it is never returned to the caller and never stored in UiState.
+// Only the public addresses come back.
 //
-// The actual cryptography (libsecp256k1 / Monero keygen) and the real C330 print
-// payload format are OUT OF SCOPE here — the functions below are stubs with a
-// stable signature so the real implementation drops in without touching ui.cpp
-// or the front-ends. Keep this file std-only (no Arduino/SDL/USB headers) so it
-// builds for both the device and the simulator.
+// The real key generation lives behind WALLET_REAL_CRYPTO (device, trezor-crypto +
+// SAR-ADC entropy); without it (the simulator) a fixed BIP39 test mnemonic is used
+// so the UI/plate format can be exercised deterministically. The C330 plate format
+// is in c330_format.{h,cpp}. Keep this header std-only so both targets build.
 #pragma once
 
 #include "ui.h"   // WalletType, SendFn
@@ -22,8 +21,9 @@ struct WalletPublic {
     std::vector<PubKey> keys; // PubKey is defined in ui.h
 };
 
-// Generate a wallet, compose the printer payload, send it via `sink`, then
-// zeroize every byte of private material before returning. Only the public part
-// is written to `out_public`. Returns true if the payload was sent successfully.
-bool generate_and_print_wallet(WalletType type, const std::string &label,
-                               SendFn sink, WalletPublic &out_public);
+// Generate an HD wallet, compose all C330 plates, and stream them to the printer
+// via `sink` in keyprint.go send order (info -> mnemonic 13-24 -> mnemonic 1-12 ->
+// addresses). Fills out_pub with the public addresses and zeroizes every byte of
+// private material before returning. Returns false if any plate failed to send.
+bool wallet_print(WalletType type, const std::string &label,
+                  SendFn sink, WalletPublic &out_public);

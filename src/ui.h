@@ -42,8 +42,10 @@ struct InputEvent {
 using SendFn = bool (*)(const char *data, unsigned len);
 
 // The crypto wallet printer flow. A linear screen stack:
-//   Select -> Label -> Confirm -> Result   (forward via select/Enter/Print; back via Esc)
-enum class Screen { Select, Label, Confirm, Result };
+//   Select -> Label -> Confirm -> Printing -> Result
+// (forward via select/Enter/Print; back via Esc). Printing is a transient state
+// shown while the (blocking) plate stream runs.
+enum class Screen { Select, Label, Confirm, Printing, Result };
 
 enum class WalletType { BTC, ETH, BTC_ETH, XMR };
 
@@ -82,6 +84,14 @@ bool ui_set_connected(UiState &s, bool connected);
 
 // Apply one input event. Returns true if the UI changed and should be redrawn.
 bool ui_handle_input(UiState &s, const InputEvent &ev);
+
+// True while a print has been requested but not yet run. The front-end should
+// render once (to show "Printing…"), then call ui_run_print().
+bool ui_pending_print(const UiState &s);
+
+// Perform the (blocking) plate stream: generate the wallet, emboss all plates,
+// then transition to Result (or back to Confirm on failure). Returns true.
+bool ui_run_print(UiState &s);
 
 // Draw the whole UI.
 void ui_render(lgfx::LGFX_Device &d, const UiState &s);

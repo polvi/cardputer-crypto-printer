@@ -147,6 +147,12 @@ void loop(void) {
     }
 
     if (dirty) ui_render(g_display, g_ui);
+
+    // Run a requested print after the "Printing…" frame is on screen.
+    if (ui_pending_print(g_ui)) {
+        ui_run_print(g_ui);
+        ui_render(g_display, g_ui);
+    }
     SDL_Delay(16);
 }
 

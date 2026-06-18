@@ -1,112 +1,75 @@
 #include "wallet.h"
+#include "c330_format.h"
 
-#include <cstddef>
-#include <vector>
+#include <array>
+
+#if defined(WALLET_REAL_CRYPTO)
+// Real HD-wallet derivation on the device. See wallet_crypto.cpp / the
+// trezor-crypto integration; declared here, defined in the device-only path.
+bool wallet_generate(std::array<std::string, 24> &words, std::string &btc, std::string &eth);
+#endif
 
 namespace {
 
 // Overwrite a string's bytes so private material does not linger in freed heap.
-// The volatile writes prevent the compiler from optimizing the loop away.
 void secure_zero(std::string &s) {
     volatile char *p = const_cast<volatile char *>(s.data());
     for (size_t i = 0; i < s.size(); ++i) p[i] = 0;
     s.clear();
 }
 
-// Distinguish repeated generations in the stub output. Not cryptographic.
-unsigned g_stub_counter = 0;
+// MINTED ON <date>. No RTC/NTP on an air-gapped device, so this is a fixed stamp
+// for now (the firmware build date would also work). TODO: real date source.
+const char *kMintDate = "2026-01-01";
 
-// ---- STUBS (replace with real BIP32/39/44 HD wallet code) -------------------
-// The wallet is an HD wallet: ONE seed, from which every chain's keys derive.
-// The seed is the only private material — it is what gets printed on the wallet.
-// Real impl: CSPRNG entropy -> BIP39 mnemonic -> BIP32 master seed.
-std::string stub_generate_seed() {
-    unsigned x = 2654435761u + (++g_stub_counter) * 40503u;
-    static const char *hex = "0123456789abcdef";
-    std::string out;
-    out.reserve(64);
-    for (int i = 0; i < 64; ++i) {
-        x = x * 1664525u + 1013904223u; // LCG, stub only
-        out.push_back(hex[(x >> 24) & 0xF]);
-    }
-    return out;
+#if !defined(WALLET_REAL_CRYPTO)
+// Simulator / no-crypto build: a fixed BIP39 256-bit all-zero test mnemonic so the
+// mnemonic plates are exactly correct, plus PLACEHOLDER addresses (not derived) so
+// the address-page format can be exercised. Real addresses come from the device.
+bool wallet_generate(std::array<std::string, 24> &words, std::string &btc, std::string &eth) {
+    static const char *kTest[24] = {
+        "abandon", "abandon", "abandon", "abandon", "abandon", "abandon",
+        "abandon", "abandon", "abandon", "abandon", "abandon", "abandon",
+        "abandon", "abandon", "abandon", "abandon", "abandon", "abandon",
+        "abandon", "abandon", "abandon", "abandon", "abandon", "art",
+    };
+    for (int i = 0; i < 24; ++i) words[i] = kTest[i];
+    btc = "bc1qsimulatoraddressplaceholderonlyq8z306"; // SIM placeholder (not real)
+    eth = "0xSiMuLaToRPlaceholderAddr0000000000000000"; // SIM placeholder (not real)
+    return true;
 }
-
-struct Chain {
-    const char *name;   // "BTC"
-    const char *path;   // BIP44 derivation path
-    const char *prefix; // address prefix for the stub
-};
-
-// BIP44 paths per chain (coin types: BTC=0, ETH=60). A wallet type maps to the
-// set of chains it derives from the single seed.
-const std::vector<Chain> &chains_for(WalletType type) {
-    static const std::vector<Chain> btc  = {{"BTC", "m/44'/0'/0'/0/0", "bc1q"}};
-    static const std::vector<Chain> eth  = {{"ETH", "m/44'/60'/0'/0/0", "0x"}};
-    static const std::vector<Chain> xmr  = {{"XMR", "m/44'/128'/0'/0/0", "4"}};
-    static const std::vector<Chain> both = {{"BTC", "m/44'/0'/0'/0/0", "bc1q"},
-                                            {"ETH", "m/44'/60'/0'/0/0", "0x"}};
-    switch (type) {
-        case WalletType::BTC:     return btc;
-        case WalletType::ETH:     return eth;
-        case WalletType::XMR:     return xmr;
-        case WalletType::BTC_ETH: return both;
-    }
-    return btc;
-}
-
-// STUB: derive a chain's PUBLIC address from the seed + its derivation path.
-// Deterministic in (seed, path) so one seed yields stable addresses (the HD
-// property). Real impl: BIP32 child key derivation + chain address encoding.
-std::string stub_derive_public(const std::string &seed, const Chain &c) {
-    unsigned h = 2166136261u; // FNV-ish mix of seed + path; stub only
-    for (char ch : seed)      h = (h ^ (unsigned char)ch) * 16777619u;
-    for (const char *p = c.path; *p; ++p) h = (h ^ (unsigned char)*p) * 16777619u;
-
-    static const char *b36 = "0123456789abcdefghijklmnopqrstuvwxyz";
-    std::string addr = c.prefix;
-    for (int i = 0; i < 32; ++i) {
-        h = h * 1664525u + 1013904223u;
-        addr.push_back(b36[(h >> 24) % 36]);
-    }
-    return addr;
-}
-
-// The bytes printed on the physical wallet: the seed (PRIVATE) plus, for the
-// record, each chain's derivation path + public address. The real C330 engraving
-// layout is OUT OF SCOPE. Framed <...> so the simulator can show what prints.
-std::string compose_print_payload(WalletType type, const std::string &label,
-                                  const std::string &seed,
-                                  const std::vector<PubKey> &pubs,
-                                  const std::vector<Chain> &chains) {
-    std::string body = wallet_name(type);
-    if (!label.empty()) body += " \"" + label + "\"";
-    body += " SEED:" + seed;
-    for (size_t i = 0; i < pubs.size(); ++i) {
-        body += " " + pubs[i].chain + "(" + chains[i].path + "):" + pubs[i].key;
-    }
-    return "<" + body + ">\r\n";
-}
+#endif
 
 } // namespace
 
-bool generate_and_print_wallet(WalletType type, const std::string &label,
-                               SendFn sink, WalletPublic &out_public) {
-    const std::vector<Chain> &chains = chains_for(type);
-
-    // One HD seed; all chains derive from it (BIP32/39/44).
-    std::string seed = stub_generate_seed();
+bool wallet_print(WalletType /*type*/, const std::string &label,
+                  SendFn sink, WalletPublic &out_public) {
+    // BTC+ETH only for now (XMR deferred); any selection prints the BTC+ETH wallet.
+    std::array<std::string, 24> words;
+    std::string btc, eth;
+    if (!wallet_generate(words, btc, eth)) return false;
 
     out_public.keys.clear();
-    for (const auto &c : chains) {
-        out_public.keys.push_back({c.name, stub_derive_public(seed, c)});
+    out_public.keys.push_back({"BTC", btc});
+    out_public.keys.push_back({"ETH", eth});
+
+    // Compose the four plates in keyprint.go send order. plate_mnemonic_* uppercase
+    // the (lowercase) BIP39 words for the drum.
+    std::string plates[4] = {
+        c330::plate_info(),                                              // str0 (F0)
+        c330::plate_mnemonic_13_24(words),                              // str1 (F2)
+        c330::plate_mnemonic_1_12(words),                               // str2 (F1)
+        c330::plate_addresses(btc, eth, "BTC", "ETH", label, kMintDate) // str3 (F3)
+    };
+
+    bool ok = true;
+    for (int i = 0; i < 4 && ok; ++i) {
+        ok = sink && sink(plates[i].data(), (unsigned)plates[i].size());
     }
 
-    std::string payload = compose_print_payload(type, label, seed, out_public.keys, chains);
-    bool ok = sink && sink(payload.data(), (unsigned)payload.size());
-
-    // The seed is the only private material; it must not outlive this call.
-    secure_zero(seed);
-    secure_zero(payload);
+    // Private material must not outlive this call: the mnemonic words and the
+    // mnemonic plate payloads (plates[1], plates[2]) carry the secret. Wipe all.
+    for (auto &w : words) secure_zero(w);
+    for (auto &p : plates) secure_zero(p);
     return ok;
 }

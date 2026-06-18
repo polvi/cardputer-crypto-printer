@@ -67,18 +67,27 @@ static std::unique_ptr<CdcAcmDevice> g_vcp;
 static SemaphoreHandle_t g_vcp_mutex = nullptr;        // guards g_vcp
 static SemaphoreHandle_t g_disconnected_sem = nullptr; // signalled on unplug
 static volatile bool g_ready = false;                  // device open + configured
+static volatile bool g_cts   = true;                   // clear-to-send (Xon/Xoff)
 
 // Low-level write to the C330 (locks g_vcp). Defined after the USB task.
 static esp_err_t c330_write_raw(const char *data, size_t len);
+
+// C330 software flow control.
+static constexpr uint8_t XON  = 0x11;
+static constexpr uint8_t XOFF = 0x13;
 
 // =============================================================================
 // USB host plumbing
 // =============================================================================
 
-// The C330 may assert Xon/Xoff. For short hello-world messages its receive
-// buffer never fills, so we just log anything it sends back.
+// The C330 paces us with Xon/Xoff: it sends XOFF (0x13) when its input buffer is
+// filling and XON (0x11) when it can take more. We honor that in c330_write_raw
+// so streaming several plates at once doesn't overflow it (manual error E64).
 static bool handle_rx(const uint8_t *data, size_t len, void *arg) {
-    ESP_LOGI(TAG, "rx %u bytes", (unsigned)len);
+    for (size_t i = 0; i < len; ++i) {
+        if (data[i] == XOFF) g_cts = false;
+        else if (data[i] == XON) g_cts = true;
+    }
     return true;
 }
 
@@ -178,12 +187,21 @@ static void usb_host_task(void *arg) {
 }
 
 // Low-level write to the C330. Locks g_vcp; does not depend on g_ready so it can
-// push the format during connect setup. Returns ESP_OK on success.
+// push the format during connect setup. Streams in small chunks and pauses while
+// the C330 has asserted XOFF, so multi-plate sends never overflow it. Returns
+// ESP_OK on success.
 static esp_err_t c330_write_raw(const char *data, size_t len) {
+    static constexpr size_t kChunk = 64;
     xSemaphoreTake(g_vcp_mutex, portMAX_DELAY);
-    esp_err_t err = ESP_ERR_INVALID_STATE;
-    if (g_vcp) {
-        err = g_vcp->tx_blocking(reinterpret_cast<uint8_t *>(const_cast<char *>(data)), len);
+    esp_err_t err = g_vcp ? ESP_OK : ESP_ERR_INVALID_STATE;
+    for (size_t off = 0; off < len && err == ESP_OK; off += kChunk) {
+        // Wait out an XOFF (cap the wait so a stuck machine can't deadlock us).
+        for (int spins = 0; !g_cts && spins < 4000; ++spins) {
+            vTaskDelay(pdMS_TO_TICKS(5)); // ~20 s ceiling
+        }
+        size_t n = (len - off < kChunk) ? (len - off) : kChunk;
+        err = g_vcp->tx_blocking(
+            reinterpret_cast<uint8_t *>(const_cast<char *>(data + off)), n);
     }
     xSemaphoreGive(g_vcp_mutex);
     return err;
@@ -257,5 +275,12 @@ void loop() {
     }
 
     if (dirty) ui_render(M5Cardputer.Display, g_ui);
+
+    // Run a requested print after the "Printing…" frame is on screen. This blocks
+    // (streaming all plates, honoring Xon/Xoff) until the wallet is sent.
+    if (ui_pending_print(g_ui)) {
+        ui_run_print(g_ui);
+        ui_render(M5Cardputer.Display, g_ui);
+    }
     delay(10);
 }

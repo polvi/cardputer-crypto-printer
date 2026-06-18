@@ -108,26 +108,18 @@ static bool handle_label(UiState &s, const InputEvent &ev) {
     }
 }
 
-// Generate + print, then move to the result screen. Private material lives only
-// inside generate_and_print_wallet() and is zeroized there; we keep only pubkeys.
-static bool do_print(UiState &s) {
-    if (!s.connected) {
-        s.status = "Printer not connected";
+static bool handle_confirm(UiState &s, const InputEvent &ev) {
+    if (ev.key == InputKey::Print) {
+        if (!s.connected) {
+            s.status = "Printer not connected";
+            return true;
+        }
+        // Enter the transient Printing screen; the front-end renders it, then
+        // calls ui_run_print() to do the actual (blocking) plate stream.
+        s.screen = Screen::Printing;
+        s.status = "Printing... do not remove plates";
         return true;
     }
-    WalletPublic pub;
-    if (generate_and_print_wallet(s.wallet, s.buffer, s.send, pub)) {
-        s.pubkeys = pub.keys;
-        s.screen  = Screen::Result;
-        s.status  = "Any key: new wallet";
-    } else {
-        s.status = "Print FAILED";
-    }
-    return true;
-}
-
-static bool handle_confirm(UiState &s, const InputEvent &ev) {
-    if (ev.key == InputKey::Print) return do_print(s);
     if (ev.key == InputKey::Esc) {
         s.screen = Screen::Label;
         s.status = "ENTER=continue  ESC=back";
@@ -150,12 +142,33 @@ static bool handle_result(UiState &s, const InputEvent &ev) {
 
 bool ui_handle_input(UiState &s, const InputEvent &ev) {
     switch (s.screen) {
-        case Screen::Select:  return handle_select(s, ev);
-        case Screen::Label:   return handle_label(s, ev);
-        case Screen::Confirm: return handle_confirm(s, ev);
-        case Screen::Result:  return handle_result(s, ev);
+        case Screen::Select:   return handle_select(s, ev);
+        case Screen::Label:    return handle_label(s, ev);
+        case Screen::Confirm:  return handle_confirm(s, ev);
+        case Screen::Printing: return false; // ignore input while streaming
+        case Screen::Result:   return handle_result(s, ev);
     }
     return false;
+}
+
+bool ui_pending_print(const UiState &s) {
+    return s.screen == Screen::Printing;
+}
+
+// Blocking: generate the wallet, stream all plates, then transition. Private
+// material lives only inside wallet_print() and is zeroized there; we keep only
+// the public addresses.
+bool ui_run_print(UiState &s) {
+    WalletPublic pub;
+    if (wallet_print(s.wallet, s.buffer, s.send, pub)) {
+        s.pubkeys = pub.keys;
+        s.screen  = Screen::Result;
+        s.status  = "Any key: new wallet";
+    } else {
+        s.screen = Screen::Confirm;
+        s.status = "Print FAILED";
+    }
+    return true;
 }
 
 // ============================================================================
@@ -273,6 +286,24 @@ static void render_result(lgfx::LGFX_Device &d, const UiState &s) {
     else                       render_result_multi(d, s.pubkeys);
 }
 
+static void render_printing(lgfx::LGFX_Device &d, const UiState &s) {
+    d.setTextColor(TFT_CYAN, TFT_BLACK);
+    d.setTextSize(2);
+    d.setCursor(4, 4);
+    d.print("Printing");
+
+    d.setTextSize(2);
+    d.setTextColor(TFT_WHITE, TFT_BLACK);
+    d.setCursor(4, 44);
+    d.print(wallet_name(s.wallet));
+    d.print(" wallet");
+
+    d.setTextSize(1);
+    d.setTextColor(TFT_DARKGREY, TFT_BLACK);
+    d.setCursor(4, 72);
+    d.print("Embossing plates - please wait");
+}
+
 static void draw_chrome(lgfx::LGFX_Device &d, const UiState &s) {
     // connection indicator dot, top-right
     d.fillCircle(d.width() - 7, 7, 4, s.connected ? TFT_GREEN : TFT_RED);
@@ -287,10 +318,11 @@ static void draw_chrome(lgfx::LGFX_Device &d, const UiState &s) {
 void ui_render(lgfx::LGFX_Device &d, const UiState &s) {
     d.fillScreen(TFT_BLACK);
     switch (s.screen) {
-        case Screen::Select:  render_select(d, s);  break;
-        case Screen::Label:   render_label(d, s);   break;
-        case Screen::Confirm: render_confirm(d, s); break;
-        case Screen::Result:  render_result(d, s);  break;
+        case Screen::Select:   render_select(d, s);   break;
+        case Screen::Label:    render_label(d, s);    break;
+        case Screen::Confirm:  render_confirm(d, s);  break;
+        case Screen::Printing: render_printing(d, s); break;
+        case Screen::Result:   render_result(d, s);   break;
     }
     draw_chrome(d, s);
 }
