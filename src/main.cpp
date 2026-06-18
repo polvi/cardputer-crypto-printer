@@ -19,6 +19,8 @@
 #include <Arduino.h>
 #include <M5Cardputer.h>
 
+#include "ui.h"
+
 #include <memory>
 #include <cstring>
 
@@ -187,57 +189,17 @@ static esp_err_t c330_write_raw(const char *data, size_t len) {
     return err;
 }
 
-// Frame the text per the C330 protocol and send it. Returns false if no device.
-// The layout is already defined by the format pushed on connect; here we send
-// just the text line, which maps to format line 1.
-static bool c330_send(const String &text) {
+// Sink the UI hands framed payload bytes to. Writes to the C330 over USB.
+static bool device_send(const char *data, unsigned len) {
     if (!g_ready) return false;
-    String framed = "<" + text + ">\r\n";
-    return c330_write_raw(framed.c_str(), framed.length()) == ESP_OK;
+    return c330_write_raw(data, len) == ESP_OK;
 }
 
 // =============================================================================
-// Cardputer UI
+// Cardputer UI (shared UiState; see ui.h)
 // =============================================================================
 
-static String g_buffer;
-static String g_status = "Connect C330 via USB...";
-
-static void redraw() {
-    auto &d = M5Cardputer.Display;
-    d.fillScreen(TFT_BLACK);
-
-    d.setTextColor(TFT_CYAN, TFT_BLACK);
-    d.setTextSize(2);
-    d.setCursor(4, 4);
-    d.print("C330 Embosser");
-
-    // connection status
-    d.setTextSize(1);
-    if (g_ready) {
-        d.setTextColor(TFT_GREEN, TFT_BLACK);
-        d.setCursor(4, 26);
-        d.print("USB: connected (57600)");
-    } else {
-        d.setTextColor(TFT_RED, TFT_BLACK);
-        d.setCursor(4, 26);
-        d.print("USB: waiting for C330...");
-    }
-
-    // typed message
-    d.setTextColor(TFT_WHITE, TFT_BLACK);
-    d.setTextSize(2);
-    d.setCursor(4, 44);
-    d.print("> ");
-    d.print(g_buffer);
-    d.print("_"); // cursor
-
-    // status / hint line at bottom
-    d.setTextSize(1);
-    d.setTextColor(TFT_YELLOW, TFT_BLACK);
-    d.setCursor(4, d.height() - 12);
-    d.print(g_status);
-}
+static UiState g_ui;
 
 void setup() {
     auto cfg = M5.config();
@@ -251,42 +213,28 @@ void setup() {
     // Run USB host on core 0 so the Arduino UI keeps core 1 to itself.
     xTaskCreatePinnedToCore(usb_host_task, "usb_host", 8192, nullptr, 5, nullptr, 0);
 
-    redraw();
+    ui_init(g_ui, device_send, "Connect C330 via USB...");
+    ui_render(M5Cardputer.Display, g_ui);
 }
 
 void loop() {
     M5Cardputer.update();
 
-    static bool last_ready = false;
-    if (g_ready != last_ready) {
-        last_ready = g_ready;
-        if (g_ready && g_status.startsWith("Connect")) g_status = "Type, then ENTER to emboss";
-        redraw();
-    }
+    bool dirty = ui_set_connected(g_ui, g_ready);
 
     if (M5Cardputer.Keyboard.isChange() && M5Cardputer.Keyboard.isPressed()) {
         Keyboard_Class::KeysState st = M5Cardputer.Keyboard.keysState();
 
         for (auto c : st.word) {
-            g_buffer += c;
+            if (ui_handle_input(g_ui, {InputKey::Char, c})) dirty = true;
         }
-        if (st.del && g_buffer.length() > 0) {
-            g_buffer.remove(g_buffer.length() - 1);
-        }
-        if (st.enter) {
-            if (g_buffer.length() == 0) {
-                g_status = "Type something first";
-            } else if (!g_ready) {
-                g_status = "No C330 connected";
-            } else if (c330_send(g_buffer)) {
-                g_status = "Sent: " + g_buffer;
-                g_buffer = "";
-            } else {
-                g_status = "Send FAILED";
-            }
-        }
-        redraw();
+        if (st.del   && ui_handle_input(g_ui, {InputKey::Backspace, 0})) dirty = true;
+        if (st.enter && ui_handle_input(g_ui, {InputKey::Enter, 0}))     dirty = true;
+        // NOTE: the Cardputer key matrix has no dedicated arrow flags. Arrow
+        // events (used by the sim today) can be mapped here from fn+key combos
+        // once the exact on-hardware keycodes are confirmed.
     }
 
+    if (dirty) ui_render(M5Cardputer.Display, g_ui);
     delay(10);
 }

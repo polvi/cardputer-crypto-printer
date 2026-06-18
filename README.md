@@ -75,6 +75,28 @@ are documented inline in `platformio.ini`:
 Everything else (board `esp32-s3-devkitc-1`, `upload_speed=1500000`, debug
 level, M5Cardputer from GitHub) matches the M5Stack-recommended config.
 
+## Develop the UI on your Mac (simulator)
+
+The UI is hardware-independent (`src/ui.cpp`) and also builds as a native macOS
+app via M5GFX's SDL2 backend, so you can iterate on layout/flow without a
+Cardputer or a C330. It renders at the real 240×135 resolution (scaled up) and
+reads your Mac keyboard, **including arrow keys**.
+
+```bash
+brew install sdl2          # one-time
+pio run -e sim -t exec     # build + open the window
+```
+
+In the window: type to edit, **←/→** move the caret, **↑/↓** jump to start/end,
+**Backspace** deletes, **Esc** clears, **Enter** "sends" — which prints the
+exact framed bytes (`<TEXT>\r\n`) to the terminal so you can watch the protocol
+output. The same `ui_*` code runs unchanged on the device.
+
+> The simulator covers the **screen + keyboard UI** only. The USB-host→FTDI link
+> to the C330 has no emulator and is exercised on real hardware (or a bench
+> USB-serial adapter). On the device, arrow keys still need a key mapping — the
+> Cardputer matrix has no dedicated arrow flags (noted in `src/main.cpp`).
+
 ## Usage
 
 1. Power on the C330, press **CLEAR** to finish its init cycle until it shows
@@ -88,8 +110,10 @@ level, M5Cardputer from GitHub) matches the M5Stack-recommended config.
 
 | Path | What |
 | --- | --- |
-| `platformio.ini` | Build config + air-gap component removals (commented inline) |
+| `platformio.ini` | Two envs: `m5stack-cardputer` (firmware) + `sim` (desktop UI) |
 | `sdkconfig.defaults` | IDF settings: 1000 Hz tick, C++ exceptions, Arduino autostart, BT off |
-| `src/main.cpp` | Keyboard UI + USB-host FTDI bridge to the C330 |
+| `src/ui.h` / `src/ui.cpp` | Hardware-independent UI: state, input model, rendering |
+| `src/main.cpp` | Device front-end: Cardputer keyboard + USB-host FTDI bridge |
+| `src/sim_main.cpp` | Desktop front-end: SDL window + Mac keyboard |
 | `src/idf_component.yml` | ESP-IDF USB-host components (FTDI/CP210x/CH34x) |
 | `docs/` | C330 Operator Manual + Cardputer docs link |
