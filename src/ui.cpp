@@ -56,7 +56,7 @@ static bool handle_select(UiState &s, const InputEvent &ev) {
         case '3': // Custom: a few free-form lines on one card.
             s.wallet = WalletType::CUSTOM;
             s.screen = Screen::Custom;
-            s.status = "ENTER=new line  G0=print  ESC=back";
+            s.status = "ENTER=new line  G0/Cmd+Enter=print";
             return true;
         // Solo BTC/ETH are hidden until their crypto is implemented.
         default:  return false;
@@ -105,7 +105,7 @@ static bool handle_label(UiState &s, const InputEvent &ev) {
 
         case InputKey::Enter: // label is optional; may be empty
             s.screen = Screen::Confirm;
-            s.status = "G0 or ENTER = print   ESC=back";
+            s.status = "G0/Cmd+Enter = print   ESC=back";
             return true;
 
         case InputKey::Esc:
@@ -204,8 +204,9 @@ static bool handle_custom(UiState &s, const InputEvent &ev) {
 }
 
 static bool handle_confirm(UiState &s, const InputEvent &ev) {
-    // Print on the G0 button (device) or Enter (works everywhere, incl. the sim).
-    if (ev.key == InputKey::Print || ev.key == InputKey::Enter) {
+    // The print button only: G0 on the device, Cmd+Enter in the sim. Same trigger
+    // everywhere (Confirm and Custom) so plain Enter never prints.
+    if (ev.key == InputKey::Print) {
         if (!s.connected) {
             s.status = "Printer not connected";
             return true;
