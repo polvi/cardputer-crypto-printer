@@ -78,4 +78,9 @@ std::string plate_polyseed_9_16(const std::array<std::string, 16> &words);
 std::string plate_xmr_address(const std::string &addr, const std::string &header,
                               const std::string &message, const std::string &date);
 
+// --- Custom: a few free-form lines on a single card ---
+// F0 plate, one row per line (Y050 step 75). `lines` should already be uppercase
+// and C330-valid (the UI sanitizes input); the whole plate is uppercased anyway.
+std::string plate_custom(const std::vector<std::string> &lines);
+
 } // namespace c330

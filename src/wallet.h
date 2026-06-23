@@ -27,3 +27,7 @@ struct WalletPublic {
 // private material before returning. Returns false if any plate failed to send.
 bool wallet_print(WalletType type, const std::string &label,
                   SendFn sink, WalletPublic &out_public);
+
+// Print a single "Custom" card: a few free-form lines of text (`\n`-separated,
+// capped to CUSTOM_MAX_LINES). No crypto, no keys, no secrets.
+bool custom_print(const std::string &text, SendFn sink);

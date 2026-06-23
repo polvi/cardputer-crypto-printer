@@ -110,3 +110,17 @@ bool wallet_print(WalletType type, const std::string &label,
     if (type == WalletType::XMR) return print_xmr(label, sink, out_public);
     return print_btceth(label, sink, out_public); // BTC_ETH (and BTC/ETH) for now
 }
+
+bool custom_print(const std::string &text, SendFn sink) {
+    std::vector<std::string> lines;
+    for (size_t start = 0; start <= text.size() && lines.size() < CUSTOM_MAX_LINES;) {
+        size_t nl = text.find('\n', start);
+        if (nl == std::string::npos) { lines.push_back(text.substr(start)); break; }
+        lines.push_back(text.substr(start, nl - start));
+        start = nl + 1;
+    }
+    while (lines.size() > 1 && lines.back().empty()) lines.pop_back();
+    if (lines.empty() || (lines.size() == 1 && lines[0].empty())) return false;
+    std::vector<std::string> plates = {c330::plate_custom(lines)};
+    return send_plates(plates, sink);
+}

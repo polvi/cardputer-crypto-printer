@@ -196,4 +196,15 @@ std::string plate_xmr_address(const std::string &addr, const std::string &header
     return to_upper(out);
 }
 
+std::string plate_custom(const std::vector<std::string> &lines) {
+    std::string text;
+    for (size_t i = 0; i < lines.size(); ++i) {
+        text += lines[i];
+        if (i + 1 < lines.size()) text += "\n";
+    }
+    std::string out = "\n<]F0 SY540SX860\n" + layout_rows((int)lines.size()) +
+                      ">\n\n<" + text + ">\n";
+    return to_upper(out);
+}
+
 } // namespace c330

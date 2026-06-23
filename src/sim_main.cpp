@@ -100,8 +100,11 @@ static int SDLCALL event_watch(void *, SDL_Event *e) {
         case SDLK_DOWN:      ev = {InputKey::Down, 0};      break;
         case SDLK_LEFT:      ev = {InputKey::Left, 0};      break;
         case SDLK_RIGHT:     ev = {InputKey::Right, 0};     break;
+        // Cmd+Enter = the print button (G0 stand-in); plain Enter = newline/advance.
         case SDLK_RETURN:
-        case SDLK_KP_ENTER:  ev = {InputKey::Enter, 0};     break;
+        case SDLK_KP_ENTER:
+            ev = {(e->key.keysym.mod & KMOD_GUI) ? InputKey::Print : InputKey::Enter, 0};
+            break;
         case SDLK_BACKSPACE: ev = {InputKey::Backspace, 0}; break;
         case SDLK_ESCAPE:    ev = {InputKey::Esc, 0};       break;
         default:             return 0;

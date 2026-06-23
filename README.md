@@ -24,10 +24,11 @@ cannot be brought up at all — critical for a device that handles key material.
 A screen state machine (`src/ui.cpp`), hardware-independent so it runs on both
 the device and the desktop simulator:
 
-1. **Select** — choose a wallet type with a number key: `1` BTC+ETH, `2` XMR.
-   (Solo BTC/ETH are hidden until their crypto is wired; see status below.)
+1. **Select** — pick with a number key: `1` BTC+ETH, `2` XMR, `3` **Custom**
+   (a few free-form lines on one card). (Solo BTC/ETH are hidden until wired.)
 2. **Label** — optionally type a label (max 24 chars), editable with the arrow
-   caret. Enter continues, Esc goes back.
+   caret. Enter continues, Esc goes back. (For **Custom**, this step is instead a
+   multi-line editor — see below.)
 3. **Confirm** — shows the wallet name, the **per-key details** (the same lines as
    the info plate, e.g. "MONERO / 16 WORD POLYSEED / ACCOUNT NUMBER 0"), and the
    label. **Press the top G0 button once** to print the whole wallet.
@@ -46,6 +47,10 @@ format/order of the reference tool `docs/keyprint.go` (verified against it):
 - **XMR** (16-word **polyseed**): info `]F0` ("POLVI HD WALLET / MONERO / 16 WORD
   POLYSEED / ACCOUNT NUMBER 0") → polyseed 9-16 `]F2` → 1-8 `]F1` → monero address
   `]F3` (95 chars split across four hyphenated lines).
+- **Custom**: a **single** `]F0` plate with up to **4 free-form lines** (≤26 chars
+  each), folded to uppercase and restricted to the C330 charset. No crypto, no QR —
+  the editor is a small multi-line text field (Enter = new line; G0 / ⌘+Enter to
+  print); the Result screen just confirms "CARD PRINTED".
 
 The C330 drum is uppercase-only (≤26 chars/line); mixed-case addresses are
 embossed by stacking two rows 7 units apart, so case is recovered by vertical
@@ -142,21 +147,22 @@ Walk the whole flow in the window:
 
 | Key (sim) | Action |
 | --- | --- |
-| `1`–`2` | choose wallet type (BTC+ETH / XMR) |
-| typing | edit the label — folded to uppercase, restricted to the C330 charset (incl. Space) |
+| `1`–`3` | choose BTC+ETH / XMR / Custom |
+| typing | edit text — folded to uppercase, restricted to the C330 charset (incl. Space) |
 | **⌥ + `;,./`** or desktop arrows | move the caret |
-| **Enter** | Label → Confirm, then Confirm → print |
+| **Enter** | Label → Confirm; on **Custom**, insert a new line |
+| **⌘ + Enter** | the **print button** (G0 stand-in) — works on Confirm and Custom |
 | **Esc** | go back a screen |
 
 On print, the payload prints to the terminal as `TX -> C330: …` and the Result
-screen shows the QR(s) + public key(s). The same `ui_*` code runs unchanged on the
-device (where the **top G0 button** prints, and Enter also works).
+screen shows the QR(s) (or "CARD PRINTED" for Custom). The same `ui_*` code runs
+unchanged on the device (where the **top G0 button** prints).
 
 **Arrow keys.** The real Cardputer has no arrow keys — it uses **Fn + `;`(up)
 `,`(left) `.`(down) `/`(right)**. macOS can't expose the hardware Fn key to SDL,
-so the sim uses **Option (⌥) as Fn**. The print button is the device's **G0**;
-in the sim, **Enter on the Confirm screen** prints (so Space stays free for the
-label).
+so the sim uses **Option (⌥) as Fn**. The print button is the device's **G0**; in
+the sim it's **⌘+Enter** (so plain Enter stays free to advance / add a line, and
+Space is free for typing).
 
 > The simulator covers the **screen + keyboard UI** only. The USB-host→FTDI link
 > to the printer has no emulator and is exercised on real hardware (or a bench

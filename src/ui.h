@@ -41,19 +41,23 @@ struct InputEvent {
 //   sim:    prints the bytes to the terminal
 using SendFn = bool (*)(const char *data, unsigned len);
 
-// The crypto wallet printer flow. A linear screen stack:
-//   Select -> Label -> Confirm -> Printing -> Result
-// (forward via select/Enter/Print; back via Esc). Printing is a transient state
-// shown while the (blocking) plate stream runs.
-enum class Screen { Select, Label, Confirm, Printing, Result };
+// The printer flow. Wallet path: Select -> Label -> Confirm -> Printing -> Result.
+// Custom path: Select -> Custom -> Printing -> Result. (forward via select/Enter/
+// Print; back via Esc). Printing is a transient state while plates stream.
+enum class Screen { Select, Label, Confirm, Custom, Printing, Result };
 
-enum class WalletType { BTC, ETH, BTC_ETH, XMR };
+// CUSTOM isn't a wallet — it's the "free-form text on one card" mode; it routes
+// to custom_print, never to wallet_print.
+enum class WalletType { BTC, ETH, BTC_ETH, XMR, CUSTOM };
 
-// Human-readable wallet name ("BTC", "ETH", "BTC+ETH", "XMR").
+// Human-readable name ("BTC", "ETH", "BTC+ETH", "XMR", "Custom").
 const char *wallet_name(WalletType w);
 
 // Max characters for the optional label.
 static constexpr unsigned LABEL_MAX = 24;
+
+// Custom card: a few free-form lines of up to 26 chars (the C330 line limit).
+static constexpr unsigned CUSTOM_MAX_LINES = 4;
 
 // One public key to display (a wallet may yield several, e.g. BTC+ETH -> 2).
 struct PubKey {

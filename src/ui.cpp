@@ -18,6 +18,7 @@ const char *wallet_name(WalletType w) {
         case WalletType::ETH:     return "ETH";
         case WalletType::BTC_ETH: return "BTC+ETH";
         case WalletType::XMR:     return "XMR";
+        case WalletType::CUSTOM:  return "Custom";
     }
     return "?";
 }
@@ -27,7 +28,7 @@ const char *wallet_name(WalletType w) {
 // ============================================================================
 void ui_init(UiState &s, SendFn send, const char *status) {
     s.send      = send;
-    s.status    = status ? status : "Press 1-4 to choose";
+    s.status    = status ? status : "Press 1-3 to choose";
     s.buffer.clear();
     s.cursor    = 0;
     s.connected = false;
@@ -47,16 +48,19 @@ bool ui_set_connected(UiState &s, bool connected) {
 // ============================================================================
 static bool handle_select(UiState &s, const InputEvent &ev) {
     if (ev.key != InputKey::Char) return false;
-    WalletType w;
+    s.buffer.clear();
+    s.cursor = 0;
     switch (ev.ch) {
-        case '1': w = WalletType::BTC_ETH; break;
-        case '2': w = WalletType::XMR;     break;
+        case '1': s.wallet = WalletType::BTC_ETH; break;
+        case '2': s.wallet = WalletType::XMR;     break;
+        case '3': // Custom: a few free-form lines on one card.
+            s.wallet = WalletType::CUSTOM;
+            s.screen = Screen::Custom;
+            s.status = "ENTER=new line  G0=print  ESC=back";
+            return true;
         // Solo BTC/ETH are hidden until their crypto is implemented.
         default:  return false;
     }
-    s.wallet = w;
-    s.buffer.clear();
-    s.cursor = 0;
     s.screen = Screen::Label;
     s.status = "ENTER=continue  ESC=back";
     return true;
@@ -108,9 +112,92 @@ static bool handle_label(UiState &s, const InputEvent &ev) {
             s.screen = Screen::Select;
             s.buffer.clear();
             s.cursor = 0;
-            s.status = "Press 1-4 to choose";
+            s.status = "Press 1-3 to choose";
             return true;
 
+        default:
+            return false;
+    }
+}
+
+// ---- Custom: a tiny multi-line text editor over buffer/cursor ----------------
+static size_t line_start(const std::string &b, size_t pos) {
+    if (pos == 0) return 0;
+    size_t i = b.rfind('\n', pos - 1);
+    return (i == std::string::npos) ? 0 : i + 1;
+}
+static size_t cur_line_len(const std::string &b, size_t pos) {
+    size_t a = line_start(b, pos);
+    size_t e = b.find('\n', a);
+    return (e == std::string::npos ? b.size() : e) - a;
+}
+static unsigned line_count(const std::string &b) {
+    unsigned n = 1;
+    for (char c : b) if (c == '\n') ++n;
+    return n;
+}
+
+static bool handle_custom(UiState &s, const InputEvent &ev) {
+    switch (ev.key) {
+        case InputKey::Char: {
+            char c = c330::sanitize_label_char(ev.ch);
+            if (!c) return false;
+            if (cur_line_len(s.buffer, s.cursor) >= c330::kMaxLine) return false;
+            s.buffer.insert(s.buffer.begin() + s.cursor, c);
+            s.cursor++;
+            return true;
+        }
+        case InputKey::Enter: // new line
+            if (line_count(s.buffer) >= CUSTOM_MAX_LINES) return false;
+            s.buffer.insert(s.buffer.begin() + s.cursor, '\n');
+            s.cursor++;
+            return true;
+
+        case InputKey::Backspace:
+            if (s.cursor == 0) return false;
+            s.buffer.erase(s.buffer.begin() + (s.cursor - 1));
+            s.cursor--;
+            return true;
+        case InputKey::Left:
+            if (s.cursor == 0) return false;
+            s.cursor--;
+            return true;
+        case InputKey::Right:
+            if (s.cursor >= s.buffer.size()) return false;
+            s.cursor++;
+            return true;
+        case InputKey::Up: {
+            size_t ls = line_start(s.buffer, s.cursor);
+            if (ls == 0) return false;
+            size_t col = s.cursor - ls;
+            size_t ps = line_start(s.buffer, ls - 1);
+            size_t plen = (ls - 1) - ps; // prev line length (excludes its '\n')
+            s.cursor = ps + (col < plen ? col : plen);
+            return true;
+        }
+        case InputKey::Down: {
+            size_t ls = line_start(s.buffer, s.cursor);
+            size_t col = s.cursor - ls;
+            size_t nl = s.buffer.find('\n', ls);
+            if (nl == std::string::npos) return false;
+            size_t ns = nl + 1;
+            size_t ne = s.buffer.find('\n', ns);
+            size_t nlen = (ne == std::string::npos ? s.buffer.size() : ne) - ns;
+            s.cursor = ns + (col < nlen ? col : nlen);
+            return true;
+        }
+
+        case InputKey::Print:
+            if (s.buffer.empty()) { s.status = "Type something first"; return true; }
+            s.screen = Screen::Printing;
+            s.status = "Printing... do not remove plate";
+            return true;
+        case InputKey::Esc:
+            s.buffer.clear();
+            s.cursor = 0;
+            s.screen = Screen::Select;
+            s.status = "Press 1-3 to choose";
+            return true;
         default:
             return false;
     }
@@ -145,7 +232,7 @@ static bool handle_result(UiState &s, const InputEvent &ev) {
     s.buffer.clear();
     s.cursor = 0;
     s.screen = Screen::Select;
-    s.status = "Press 1-4 to choose";
+    s.status = "Press 1-3 to choose";
     return true;
 }
 
@@ -154,6 +241,7 @@ bool ui_handle_input(UiState &s, const InputEvent &ev) {
         case Screen::Select:   return handle_select(s, ev);
         case Screen::Label:    return handle_label(s, ev);
         case Screen::Confirm:  return handle_confirm(s, ev);
+        case Screen::Custom:   return handle_custom(s, ev);
         case Screen::Printing: return false; // ignore input while streaming
         case Screen::Result:   return handle_result(s, ev);
     }
@@ -168,6 +256,17 @@ bool ui_pending_print(const UiState &s) {
 // material lives only inside wallet_print() and is zeroized there; we keep only
 // the public addresses.
 bool ui_run_print(UiState &s) {
+    if (s.wallet == WalletType::CUSTOM) {
+        if (custom_print(s.buffer, s.send)) {
+            s.pubkeys.clear();
+            s.screen = Screen::Result;
+            s.status = "Card printed - any key";
+        } else {
+            s.screen = Screen::Custom;
+            s.status = "Print FAILED";
+        }
+        return true;
+    }
     WalletPublic pub;
     if (wallet_print(s.wallet, s.buffer, s.send, pub)) {
         s.pubkeys = pub.keys;
@@ -189,11 +288,11 @@ static void render_select(lgfx::LGFX_Device &d, const UiState &) {
     d.setCursor(4, 4);
     d.print("Crypto Wallet");
 
-    static const char *opts[2] = {"1 BTC+ETH", "2 XMR"};
+    static const char *opts[3] = {"1 BTC+ETH", "2 XMR", "3 Custom"};
     d.setTextSize(2);
     d.setTextColor(TFT_WHITE, TFT_BLACK);
-    for (int i = 0; i < 2; ++i) {
-        d.setCursor(8, 34 + i * 26);
+    for (int i = 0; i < 3; ++i) {
+        d.setCursor(8, 30 + i * 24);
         d.print(opts[i]);
     }
 }
@@ -252,6 +351,40 @@ static void render_confirm(lgfx::LGFX_Device &d, const UiState &s) {
     d.print(s.buffer.empty() ? "(none)" : s.buffer.c_str());
 }
 
+static void render_custom(lgfx::LGFX_Device &d, const UiState &s) {
+    d.setTextColor(TFT_CYAN, TFT_BLACK);
+    d.setTextSize(2);
+    d.setCursor(4, 4);
+    d.print("Custom");
+
+    d.setTextSize(1);
+    d.setTextColor(TFT_DARKGREY, TFT_BLACK);
+    d.setCursor(4, 24);
+    char hdr[40];
+    snprintf(hdr, sizeof(hdr), "%u/%u lines", line_count(s.buffer), CUSTOM_MAX_LINES);
+    d.print(hdr);
+
+    // Text at size 1 (26 chars fit ~156px); one row per line, caret at (line,col).
+    const int x0 = 4, y0 = 38, lh = 12, cw = 6, chh = 8;
+    d.setTextColor(TFT_WHITE, TFT_BLACK);
+    int y = y0;
+    for (size_t start = 0; start <= s.buffer.size();) {
+        size_t nl = s.buffer.find('\n', start);
+        size_t end = (nl == std::string::npos) ? s.buffer.size() : nl;
+        d.setCursor(x0, y);
+        d.print(s.buffer.substr(start, end - start).c_str());
+        y += lh;
+        if (nl == std::string::npos) break;
+        start = nl + 1;
+    }
+
+    int cline = 0;
+    for (size_t i = 0; i < s.cursor; ++i)
+        if (s.buffer[i] == '\n') ++cline;
+    int ccol = (int)(s.cursor - line_start(s.buffer, s.cursor));
+    d.fillRect(x0 + ccol * cw, y0 + cline * lh, 2, chh, TFT_YELLOW);
+}
+
 // One key: large QR on the left, full key text wrapped on the right.
 static void render_result_single(lgfx::LGFX_Device &d, const PubKey &pk) {
     d.setTextColor(TFT_CYAN, TFT_BLACK);
@@ -298,7 +431,13 @@ static void render_result_multi(lgfx::LGFX_Device &d, const std::vector<PubKey> 
 }
 
 static void render_result(lgfx::LGFX_Device &d, const UiState &s) {
-    if (s.pubkeys.empty()) return;
+    if (s.pubkeys.empty()) { // Custom card: no keys, just a confirmation
+        d.setTextColor(TFT_GREEN, TFT_BLACK);
+        d.setTextSize(2);
+        d.setCursor(4, 44);
+        d.print("CARD PRINTED");
+        return;
+    }
     if (s.pubkeys.size() == 1) render_result_single(d, s.pubkeys[0]);
     else                       render_result_multi(d, s.pubkeys);
 }
@@ -313,7 +452,7 @@ static void render_printing(lgfx::LGFX_Device &d, const UiState &s) {
     d.setTextColor(TFT_WHITE, TFT_BLACK);
     d.setCursor(4, 44);
     d.print(wallet_name(s.wallet));
-    d.print(" wallet");
+    if (s.wallet != WalletType::CUSTOM) d.print(" wallet");
 
     d.setTextSize(1);
     d.setTextColor(TFT_DARKGREY, TFT_BLACK);
@@ -338,6 +477,7 @@ void ui_render(lgfx::LGFX_Device &d, const UiState &s) {
         case Screen::Select:   render_select(d, s);   break;
         case Screen::Label:    render_label(d, s);    break;
         case Screen::Confirm:  render_confirm(d, s);  break;
+        case Screen::Custom:   render_custom(d, s);   break;
         case Screen::Printing: render_printing(d, s); break;
         case Screen::Result:   render_result(d, s);   break;
     }
