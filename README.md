@@ -8,9 +8,11 @@ The Cardputer's USB-C port runs in **USB host** mode and drives the printer's
 **FTDI** USB-serial chip directly — plug the printer into the Cardputer with a
 USB host/OTG cable, no PC in the loop.
 
-> Status: the **device UI flow** is built. The actual key generation and the
-> printer payload format are **stubbed** behind a clean seam (`src/wallet.cpp`)
-> and dropped in later — see "Crypto / printer seam" below.
+> Status: complete and ready for hardware bring-up. **Real on-device key
+> generation** for BTC+ETH and XMR (verified natively against `docs/keyprint.go`
+> and BIP39 test vectors), the **C330 printer link** (FTDI USB-host, 57600 8N1,
+> Xon/Xoff), and four print modes (BTC+ETH, XMR, Custom, Test). See "Key-generation
+> status" and "First run" below.
 
 **Air-gapped by design.** The only thing this firmware ever drives is USB-serial
 to the printer. There is no network path: every cloud / radio / network component
@@ -103,26 +105,43 @@ the public addresses come back for the QR screen.
 ## Hardware / wiring
 
 - **USB host/OTG cable** from the Cardputer USB-C to the C330's USB-B port.
-- The C330 is **self-powered** (it has its own PSU), so it does not draw bus
-  power from the Cardputer — good, because the Cardputer can't supply much.
+- The C330's motors/logic are **self-powered** (its own PSU), but its **FTDI USB
+  interface chip still needs ~5 V VBUS from the host** to enumerate. The Cardputer
+  can't supply much, so if the connection dot never goes green, use a **powered
+  OTG adapter / Y-cable** to feed VBUS (see "First run").
 - Because the single ESP32-S3 USB-OTG controller is busy being a *host*, it
   **cannot** also be a USB CDC serial device. There's no USB serial monitor
   while this runs — status is shown on the Cardputer screen instead.
 
 ## Build & flash
 
-Requires [PlatformIO](https://platformio.org/).
+**Prerequisites:** [PlatformIO Core](https://platformio.org/install/cli) (`pio`).
+No board config or manual toolchain install is needed — the first build pulls the
+pioarduino platform (arduino-esp32 3.x / ESP-IDF 5.3) and the FTDI USB-host
+components automatically (a few minutes; later builds are fast).
 
-```bash
-pio run -e m5stack-cardputer            # build
-pio run -e m5stack-cardputer -t upload  # flash over USB-C
-```
+**Flash the Cardputer:**
 
-> First build downloads the arduino-esp32 3.x toolchain, ESP-IDF 5.3, and the
-> FTDI USB-host components — it takes a few minutes. Subsequent builds are fast.
+1. Connect the Cardputer to your computer with a **USB-C data cable** (here the
+   port acts as a normal USB *device* — this is the only time it isn't a host).
+2. Build + flash:
+   ```bash
+   pio run -e m5stack-cardputer -t upload
+   ```
+   PlatformIO auto-detects the port. If detection fails, pass it explicitly:
+   ```bash
+   pio run -e m5stack-cardputer -t upload --upload-port /dev/cu.usbmodem*
+   ```
+3. The Cardputer reboots into the app and shows the **Select** screen
+   (`1 BTC+ETH … 4 Test`). Flashing is complete.
 
-To flash, the Cardputer's USB-C must be a *device* (normal). After flashing,
-unplug from the PC and connect the C330 with the host cable.
+> **If upload fails to start:** hold the Cardputer's **G0** (top) button while
+> plugging in the USB-C cable to force the ROM bootloader, then re-run the upload.
+> On macOS the port is `/dev/cu.usbmodem*`; on Linux `/dev/ttyACM*` (add yourself
+> to the `dialout` group if it's permission-denied).
+
+`pio run -e m5stack-cardputer` (no `-t upload`) just builds. After flashing,
+unplug from the computer — for printing, the USB-C port becomes the **host**.
 
 ### Why not the stock M5Stack PlatformIO config?
 
@@ -158,12 +177,12 @@ Walk the whole flow in the window:
 | typing | edit text — folded to uppercase, restricted to the C330 charset (incl. Space) |
 | **⌥ + `;,./`** or desktop arrows | move the caret |
 | **Enter** | Label → Confirm; on **Custom**, insert a new line |
-| **⌘ + Enter** | the **print button** (G0 stand-in) — works on Confirm and Custom |
+| **⌘ + Enter** | the **print button** (G0 stand-in) — prints on Confirm, Custom, and Test |
 | **Esc** | go back a screen |
 
 On print, the payload prints to the terminal as `TX -> C330: …` and the Result
-screen shows the QR(s) (or "CARD PRINTED" for Custom). The same `ui_*` code runs
-unchanged on the device (where the **top G0 button** prints).
+screen shows the QR(s) (or "CARD PRINTED" for Custom/Test). The same `ui_*` code
+runs unchanged on the device (where the **top G0 button** prints).
 
 **Arrow keys.** The real Cardputer has no arrow keys — it uses **Fn + `;`(up)
 `,`(left) `.`(down) `/`(right)**. macOS can't expose the hardware Fn key to SDL,
@@ -175,14 +194,38 @@ Space is free for typing).
 > to the printer has no emulator and is exercised on real hardware (or a bench
 > USB-serial adapter).
 
-## Usage (device)
+## First run (hardware bring-up)
 
-1. Power on the C330 printer, press **CLEAR** until it shows **READY** (manual §5).
-2. Connect it to the Cardputer with the host cable. The connection dot turns green.
-3. Press `1`–`4` to pick a wallet type, optionally type a label, review the
-   **Confirm** screen, then **press the top button once** to generate + print.
-   Capture the public-key QR(s) on the result screen. Press any key to wipe and
-   start over.
+Bring it up in stages so the first thing you test is the *link*, not a real wallet.
+
+1. **Prep the C330.** Load blank plates in the hopper. Power it on and press
+   **CLEAR** until it shows **READY** (manual §5). Confirm its serial port is set
+   to **57600 baud, Xon/Xoff** (manual §6.2) — the firmware assumes this.
+2. **Connect.** Cardputer USB-C → **USB host/OTG adapter** → the C330's USB-B port.
+   The Cardputer's **connection dot turns green** when the FTDI port enumerates.
+   - **No green dot?** Suspect **VBUS**: USB-host mode must supply 5 V to the C330's
+     FTDI chip to enumerate it. If your OTG adapter doesn't pass enough power, use a
+     **powered OTG adapter / Y-cable**. (The C330 itself is self-powered; only its
+     FTDI interface chip needs bus power.)
+3. **Test card first (`4`).** Press `4`, then the **G0** top button (⌘+Enter in the
+   sim). This embosses one throwaway card (`C330 TEST CARD / CARDPUTER LINK OK /
+   MINTED <build date>`) — no crypto, no typing. It validates the whole
+   USB→FTDI→C330 path in one keystroke. If this card comes out clean, the link works.
+4. **Custom (`3`), optional.** Type a few lines, G0 to print — validates multi-line
+   layout with your own text.
+5. **Real wallet (`1` or `2`).** Pick the type, optionally type a label, review the
+   **Confirm** screen, then **press G0 once** to generate + stream all plates. The
+   C330 hopper **auto-feeds a blank per plate** (4 cards for BTC+ETH/XMR). Capture
+   the public-key **QR(s)** on the Result screen, then press any key to wipe and
+   start over. *Private material is zeroized the moment the plates finish streaming.*
+
+**Watch the C330 LCD** for error codes while embossing (manual §8): **E64** =
+buffer overflow (a flow-control problem — shouldn't happen with Xon/Xoff), **E82**
+= feeder empty (reload the hopper). The firmware doesn't read status back, so the
+LCD is your source of truth for printer-side errors.
+
+> **Final XMR acceptance:** before trusting a Monero card with funds, restore its
+> printed polyseed into a real Monero wallet and confirm the address matches the QR.
 
 ## Files
 
