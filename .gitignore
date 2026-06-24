@@ -6,3 +6,4 @@ dependencies.lock
 sdkconfig.m5stack-cardputer
 sdkconfig.*
 !sdkconfig.defaults
+*.swp
