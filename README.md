@@ -104,11 +104,13 @@ the public addresses come back for the QR screen.
 
 ## Hardware / wiring
 
-- **USB host/OTG cable** from the Cardputer USB-C to the C330's USB-B port.
-- The C330's motors/logic are **self-powered** (its own PSU), but its **FTDI USB
-  interface chip still needs ~5 V VBUS from the host** to enumerate. The Cardputer
-  can't supply much, so if the connection dot never goes green, use a **powered
-  OTG adapter / Y-cable** to feed VBUS (see "First run").
+- **USB host/OTG cable** from the Cardputer USB-C to the C330's USB-B port. The
+  adapter/cable must signal **host mode** (OTG, CC/ID pulled to ground).
+- The C330 is **self-powered** (its own PSU), so the Cardputer does **not** power
+  it — it draws ~no current over USB. The only thing the Cardputer must do as host
+  is *present* ~5 V on VBUS (a near-zero-current "a host is here" signal the FTDI
+  chip needs to enumerate). So enumeration is a cabling/host-mode question, not a
+  power-budget one (see "First run" troubleshooting).
 - Because the single ESP32-S3 USB-OTG controller is busy being a *host*, it
   **cannot** also be a USB CDC serial device. There's no USB serial monitor
   while this runs — status is shown on the Cardputer screen instead.
@@ -203,10 +205,11 @@ Bring it up in stages so the first thing you test is the *link*, not a real wall
    to **57600 baud, Xon/Xoff** (manual §6.2) — the firmware assumes this.
 2. **Connect.** Cardputer USB-C → **USB host/OTG adapter** → the C330's USB-B port.
    The Cardputer's **connection dot turns green** when the FTDI port enumerates.
-   - **No green dot?** Suspect **VBUS**: USB-host mode must supply 5 V to the C330's
-     FTDI chip to enumerate it. If your OTG adapter doesn't pass enough power, use a
-     **powered OTG adapter / Y-cable**. (The C330 itself is self-powered; only its
-     FTDI interface chip needs bus power.)
+   - **No green dot?** It's almost certainly a **cabling / host-mode** issue, not
+     power (the C330 is self-powered — the Cardputer never powers it). Check that
+     the adapter actually signals OTG host mode (CC/ID to ground), then that the
+     Cardputer is asserting VBUS in host mode. Only if VBUS is the problem does a
+     **powered OTG adapter / Y-cable** (which injects 5 V) help.
 3. **Test card first (`4`).** Press `4`, then the **G0** top button (⌘+Enter in the
    sim). This embosses one throwaway card (`C330 TEST CARD / CARDPUTER LINK OK /
    MINTED <build date>`) — no crypto, no typing. It validates the whole
