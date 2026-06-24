@@ -46,21 +46,10 @@ static constexpr uint8_t  C330_DATA_BITS = 8;
 
 static const char *TAG = "c330";
 
-// ---- C330 embossing layout (format 0) ---------------------------------------
-// Pushed on every connect so we never rely on a format stored in the machine.
-// Syntax + values follow the manual (chapters 7-8). Edit for your plate/text.
-//   U0     = unit is 10th of a mm
-//   SY540  = plate height 54.0 mm   (default; max plate 60 mm)
-//   SX860  = plate width  86.0 mm   (default; max plate 90 mm)
-// Then one embossing line:
-//   Y300   = 30.0 mm from the top edge to the bottom of the characters
-//   X100   = 10.0 mm from the left edge to the start of the characters
-//   F0     = font 0,  CI10 = 10 characters per inch
-// Each line of text we send maps to the next format line in order, so this
-// single line matches a single typed line of text.
-static const char *C330_FORMAT =
-    "<]F0 U0 SY540 SX860\r\n"
-    "Y300 X100 F0 CI10 >\r\n";
+// Note: we never pre-load a format here. Every plate we stream is self-contained
+// (its own `<]Fn SY540SX860 ...>` layout block immediately followed by `<text>`),
+// so the Cardputer defines and overwrites the format it uses on each card — just
+// like docs/keyprint.go. See src/c330_format.cpp.
 
 // ---- shared state between the USB task and the UI loop ----------------------
 static std::unique_ptr<CdcAcmDevice> g_vcp;
@@ -169,13 +158,9 @@ static void usb_host_task(void *arg) {
         g_vcp.reset(dev);
         xSemaphoreGive(g_vcp_mutex);
 
-        // Push our embossing layout (format 0) so we don't depend on a format
-        // stored in the machine. Sent once per connect, before any text.
-        if (c330_write_raw(C330_FORMAT, strlen(C330_FORMAT)) != ESP_OK) {
-            ESP_LOGE(TAG, "failed to send format");
-        }
+        // No format push here — each plate carries its own layout block.
         g_ready = true;
-        ESP_LOGI(TAG, "C330 ready @ %u baud, format 0 sent", (unsigned)C330_BAUD);
+        ESP_LOGI(TAG, "C330 ready @ %u baud", (unsigned)C330_BAUD);
 
         // Block until the device is unplugged.
         xSemaphoreTake(g_disconnected_sem, portMAX_DELAY);

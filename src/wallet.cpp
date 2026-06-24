@@ -3,6 +3,8 @@
 
 #include <array>
 #include <vector>
+#include <cstring>
+#include <cstdio>
 
 #if defined(WALLET_REAL_CRYPTO)
 // Real derivation on the device (behind the crypto foundation). Declared here,
@@ -20,9 +22,20 @@ void secure_zero(std::string &s) {
     s.clear();
 }
 
-// MINTED ON <date>. No RTC/NTP on an air-gapped device, so this is a fixed stamp
-// for now (the firmware build date would also work). TODO: real date source.
-const char *kMintDate = "2026-01-01";
+// MINTED ON <date>. No RTC on the air-gapped device, so stamp the firmware build
+// date (__DATE__ = "Mmm dd yyyy") in ISO YYYY-MM-DD, matching keyprint.go's format.
+std::string iso_build_date() {
+    static const char *mons = "JanFebMarAprMayJunJulAugSepOctNovDec";
+    const char *d = __DATE__;
+    char mon[4] = {d[0], d[1], d[2], 0};
+    const char *p = strstr(mons, mon);
+    int m = p ? int((p - mons) / 3) + 1 : 1;
+    int day = (d[4] == ' ' ? 0 : d[4] - '0') * 10 + (d[5] - '0');
+    char buf[16];
+    snprintf(buf, sizeof(buf), "%c%c%c%c-%02d-%02d", d[7], d[8], d[9], d[10], m, day);
+    return buf;
+}
+const std::string kMintDate = iso_build_date();
 
 #if !defined(WALLET_REAL_CRYPTO)
 // Simulator / no-crypto build: fixed test seeds so the mnemonic plates are exactly
@@ -121,6 +134,16 @@ bool custom_print(const std::string &text, SendFn sink) {
     }
     while (lines.size() > 1 && lines.back().empty()) lines.pop_back();
     if (lines.empty() || (lines.size() == 1 && lines[0].empty())) return false;
+    std::vector<std::string> plates = {c330::plate_custom(lines)};
+    return send_plates(plates, sink);
+}
+
+bool test_print(SendFn sink) {
+    std::vector<std::string> lines = {
+        "C330 TEST CARD",
+        "CARDPUTER LINK OK",
+        "MINTED " + kMintDate,
+    };
     std::vector<std::string> plates = {c330::plate_custom(lines)};
     return send_plates(plates, sink);
 }
