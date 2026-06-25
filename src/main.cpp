@@ -9,7 +9,8 @@
 // does not draw bus power from the Cardputer.
 //
 // Protocol (from the C330 Operator Manual, rev 1.0):
-//   - Serial line: 57600 baud, 8 data bits, no parity, 1 stop bit, Xon/Xoff.
+//   - Serial line: baud per the printer's power-on display (here 9600), 8 data
+//     bits, no parity, 1 stop bit, Xon/Xoff.
 //   - Everything BETWEEN '<' and '>' is embossed; anything outside is discarded.
 //   - Layout comes from "format 0" already stored in the machine, so a plain
 //     line of text is enough: we send  <YOUR TEXT>\r\n
@@ -38,7 +39,9 @@
 using namespace esp_usb;
 
 // ---- C330 serial parameters --------------------------------------------------
-static constexpr uint32_t C330_BAUD = 57600;
+// Must match the baud the printer shows at power-on ("Prot:Xon-Xoff Baud:NNNN").
+// The C330 menu default is 57600, but units can be configured lower (e.g. 9600).
+static constexpr uint32_t C330_BAUD = 9600;
 // cdc_acm_line_coding_t: bCharFormat 0 = 1 stop bit, bParityType 0 = none.
 static constexpr uint8_t  C330_STOP_BITS = 0;
 static constexpr uint8_t  C330_PARITY    = 0;

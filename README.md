@@ -10,7 +10,7 @@ USB host/OTG cable, no PC in the loop.
 
 > Status: complete and ready for hardware bring-up. **Real on-device key
 > generation** for BTC+ETH and XMR (verified natively against `docs/keyprint.go`
-> and BIP39 test vectors), the **C330 printer link** (FTDI USB-host, 57600 8N1,
+> and BIP39 test vectors), the **C330 printer link** (FTDI USB-host, 9600 8N1,
 > Xon/Xoff), and four print modes (BTC+ETH, XMR, Custom, Test). See "Key-generation
 > status" and "First run" below.
 
@@ -96,7 +96,10 @@ the public addresses come back for the QR screen.
 ## Printer link
 
 1. The ESP32-S3 USB host stack (`usb_host_vcp` + `usb_host_ftdi`) opens the
-   C330's FTDI port and configures it to **57600 8N1** (manual §6.2).
+   C330's FTDI port and configures it to **9600 8N1**. The baud **must match what
+   the printer shows at power-on** (`Prot:Xon-Xoff Baud:NNNN`); it's set by
+   `C330_BAUD` in `src/main.cpp` (the C330 menu default is 57600, but units can be
+   set lower — this one is 9600).
 2. On print, all plates stream back-to-back. The firmware honors the C330's
    **Xon/Xoff** (`main.cpp`): it pauses on XOFF (0x13) and resumes on XON (0x11)
    so a multi-plate stream never overflows the machine's buffer (error E64).
@@ -201,8 +204,10 @@ Space is free for typing).
 Bring it up in stages so the first thing you test is the *link*, not a real wallet.
 
 1. **Prep the C330.** Load blank plates in the hopper. Power it on and press
-   **CLEAR** until it shows **READY** (manual §5). Confirm its serial port is set
-   to **57600 baud, Xon/Xoff** (manual §6.2) — the firmware assumes this.
+   **CLEAR** until it shows **READY** (manual §5). Note the baud it reports during
+   the init cycle (`Prot:Xon-Xoff Baud:NNNN`): the firmware is built for **9600**
+   — they must match. If yours differs, set `C330_BAUD` in `src/main.cpp` and
+   reflash (or change the printer's baud in its menu).
 2. **Connect.** Cardputer USB-C → **USB host/OTG adapter** → the C330's USB-B port.
    The Cardputer's **connection dot turns green** when the FTDI port enumerates.
    - **No green dot?** It's almost certainly a **cabling / host-mode** issue, not
