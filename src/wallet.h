@@ -28,9 +28,10 @@ struct WalletPublic {
 bool wallet_print(WalletType type, const std::string &label,
                   SendFn sink, WalletPublic &out_public);
 
-// Print a single "Custom" card: a few free-form lines of text (`\n`-separated,
-// capped to CUSTOM_MAX_LINES). No crypto, no keys, no secrets.
-bool custom_print(const std::string &text, SendFn sink);
+// Print a "Custom" card: a few free-form lines of text (`\n`-separated, capped to
+// CUSTOM_MAX_LINES), embossed `copies` times (the hopper auto-feeds each). No
+// crypto, no keys, no secrets.
+bool custom_print(const std::string &text, unsigned copies, SendFn sink);
 
 // Print one fixed "test" card (no input, no crypto) to validate the C330 link.
 bool test_print(SendFn sink);

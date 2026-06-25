@@ -42,9 +42,10 @@ struct InputEvent {
 using SendFn = bool (*)(const char *data, unsigned len);
 
 // The printer flow. Wallet path: Select -> Label -> Confirm -> Printing -> Result.
-// Custom/Test path: Select -> Custom|Test -> Printing -> Result. (forward via
-// select/Enter/Print; back via Esc). Printing is transient while plates stream.
-enum class Screen { Select, Label, Confirm, Custom, Test, Printing, Result };
+// Custom path:  Select -> Custom -> Copies -> Printing -> Result.
+// Test path:    Select -> Test -> Printing -> Result. (forward via select/Enter/
+// Print; back via Esc). Printing is transient while plates stream.
+enum class Screen { Select, Label, Confirm, Custom, Copies, Test, Printing, Result };
 
 // CUSTOM (free-form text) and TEST (fixed test card) aren't wallets — they route
 // to custom_print / test_print, never to wallet_print.
@@ -58,6 +59,9 @@ static constexpr unsigned LABEL_MAX = 24;
 
 // Custom card: a few free-form lines of up to 26 chars (the C330 line limit).
 static constexpr unsigned CUSTOM_MAX_LINES = 4;
+
+// Custom print: how many identical cards to emboss (the hopper auto-feeds each).
+static constexpr unsigned COPIES_MAX = 99;
 
 // One public key to display (a wallet may yield several, e.g. BTC+ETH -> 2).
 struct PubKey {
@@ -76,6 +80,10 @@ struct UiState {
     // --- screen machine ---
     Screen      screen = Screen::Select;
     WalletType  wallet = WalletType::BTC_ETH;
+
+    // --- Custom "Copies" screen ---
+    unsigned copies = 1;          // number of identical Custom cards to print
+    bool     copies_typing = false; // next digit replaces the default vs appends
 
     // --- result: PUBLIC keys only. No private-key field ever lives here. ---
     std::vector<PubKey> pubkeys;

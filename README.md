@@ -50,10 +50,12 @@ format/order of the reference tool `docs/keyprint.go` (verified against it):
 - **XMR** (16-word **polyseed**): info `]F0` ("POLVI HD WALLET / MONERO / 16 WORD
   POLYSEED / ACCOUNT NUMBER 0") → polyseed 9-16 `]F2` → 1-8 `]F1` → monero address
   `]F3` (95 chars split across four hyphenated lines).
-- **Custom**: a **single** `]F0` plate with up to **4 free-form lines** (≤26 chars
-  each), folded to uppercase and restricted to the C330 charset. No crypto, no QR —
-  the editor is a small multi-line text field (Enter = new line; G0 / ⌘+Enter to
-  print); the Result screen just confirms "CARD PRINTED".
+- **Custom**: an `]F0` plate with up to **4 free-form lines** (≤26 chars each),
+  folded to uppercase and restricted to the C330 charset. No crypto, no QR — the
+  editor is a small multi-line text field (Enter = new line). G0/⌘+Enter goes to a
+  **Copies** screen (default **1**; type a number or step with Up/Dn, max 99), then
+  G0/⌘+Enter embosses that many identical cards (the hopper auto-feeds each). The
+  Result screen confirms "CARD PRINTED".
 - **Test**: a fixed single `]F0` plate (`C330 TEST CARD` / `CARDPUTER LINK OK` /
   `MINTED <build date>`) — no input, no crypto. Press `4` then G0/⌘+Enter; the
   quickest end-to-end check of the USB→FTDI→C330 link.

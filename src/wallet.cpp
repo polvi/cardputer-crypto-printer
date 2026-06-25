@@ -124,7 +124,7 @@ bool wallet_print(WalletType type, const std::string &label,
     return print_btceth(label, sink, out_public); // BTC_ETH (and BTC/ETH) for now
 }
 
-bool custom_print(const std::string &text, SendFn sink) {
+bool custom_print(const std::string &text, unsigned copies, SendFn sink) {
     std::vector<std::string> lines;
     for (size_t start = 0; start <= text.size() && lines.size() < CUSTOM_MAX_LINES;) {
         size_t nl = text.find('\n', start);
@@ -134,7 +134,10 @@ bool custom_print(const std::string &text, SendFn sink) {
     }
     while (lines.size() > 1 && lines.back().empty()) lines.pop_back();
     if (lines.empty() || (lines.size() == 1 && lines[0].empty())) return false;
-    std::vector<std::string> plates = {c330::plate_custom(lines)};
+    if (copies < 1) copies = 1;
+    // One plate per card; the C330 auto-feeds a blank for each document we send.
+    std::string plate = c330::plate_custom(lines);
+    std::vector<std::string> plates(copies, plate);
     return send_plates(plates, sink);
 }
 

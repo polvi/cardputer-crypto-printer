@@ -54,10 +54,12 @@ static bool handle_select(UiState &s, const InputEvent &ev) {
     switch (ev.ch) {
         case '1': s.wallet = WalletType::BTC_ETH; break;
         case '2': s.wallet = WalletType::XMR;     break;
-        case '3': // Custom: a few free-form lines on one card.
+        case '3': // Custom: a few free-form lines, printed in N copies.
             s.wallet = WalletType::CUSTOM;
             s.screen = Screen::Custom;
-            s.status = "ENTER=new line  G0/Cmd+Enter=print";
+            s.copies = 1;
+            s.copies_typing = false;
+            s.status = "ENTER=new line  G0=copies";
             return true;
         case '4': // Test: one fixed card to validate the C330 link.
             s.wallet = WalletType::TEST;
@@ -193,16 +195,54 @@ static bool handle_custom(UiState &s, const InputEvent &ev) {
             return true;
         }
 
-        case InputKey::Print:
+        case InputKey::Print: // -> Copies screen (set how many, then print)
             if (s.buffer.empty()) { s.status = "Type something first"; return true; }
-            s.screen = Screen::Printing;
-            s.status = "Printing... do not remove plate";
+            s.copies = 1;
+            s.copies_typing = false;
+            s.screen = Screen::Copies;
+            s.status = "Copies, then G0 to print  ESC=back";
             return true;
         case InputKey::Esc:
             s.buffer.clear();
             s.cursor = 0;
             s.screen = Screen::Select;
             s.status = "Press 1-4 to choose";
+            return true;
+        default:
+            return false;
+    }
+}
+
+// Copies screen: enter how many identical Custom cards to emboss (default 1).
+static bool handle_copies(UiState &s, const InputEvent &ev) {
+    switch (ev.key) {
+        case InputKey::Char:
+            if (ev.ch < '0' || ev.ch > '9') return false;
+            if (!s.copies_typing) { s.copies = 0; s.copies_typing = true; }
+            s.copies = s.copies * 10 + unsigned(ev.ch - '0');
+            if (s.copies > COPIES_MAX) s.copies = COPIES_MAX;
+            return true;
+        case InputKey::Backspace:
+            s.copies /= 10;
+            s.copies_typing = true;
+            return true;
+        case InputKey::Up:
+            s.copies = (s.copies < COPIES_MAX) ? s.copies + 1 : COPIES_MAX;
+            s.copies_typing = false;
+            return true;
+        case InputKey::Down:
+            s.copies = (s.copies > 1) ? s.copies - 1 : 1;
+            s.copies_typing = false;
+            return true;
+        case InputKey::Print:
+            if (s.copies < 1) s.copies = 1;
+            if (!s.connected) { s.status = "Printer not connected"; return true; }
+            s.screen = Screen::Printing;
+            s.status = "Printing... do not remove plates";
+            return true;
+        case InputKey::Esc: // back to the editor (text preserved)
+            s.screen = Screen::Custom;
+            s.status = "ENTER=new line  G0=copies";
             return true;
         default:
             return false;
@@ -265,6 +305,7 @@ bool ui_handle_input(UiState &s, const InputEvent &ev) {
         case Screen::Label:    return handle_label(s, ev);
         case Screen::Confirm:  return handle_confirm(s, ev);
         case Screen::Custom:   return handle_custom(s, ev);
+        case Screen::Copies:   return handle_copies(s, ev);
         case Screen::Test:     return handle_test(s, ev);
         case Screen::Printing: return false; // ignore input while streaming
         case Screen::Result:   return handle_result(s, ev);
@@ -281,14 +322,15 @@ bool ui_pending_print(const UiState &s) {
 // the public addresses.
 bool ui_run_print(UiState &s) {
     if (s.wallet == WalletType::CUSTOM || s.wallet == WalletType::TEST) {
-        bool ok = (s.wallet == WalletType::TEST) ? test_print(s.send)
-                                                 : custom_print(s.buffer, s.send);
+        bool ok = (s.wallet == WalletType::TEST)
+                      ? test_print(s.send)
+                      : custom_print(s.buffer, s.copies, s.send);
         if (ok) {
             s.pubkeys.clear();
             s.screen = Screen::Result;
             s.status = "Card printed - any key";
         } else {
-            s.screen = (s.wallet == WalletType::TEST) ? Screen::Test : Screen::Custom;
+            s.screen = (s.wallet == WalletType::TEST) ? Screen::Test : Screen::Copies;
             s.status = "Print FAILED";
         }
         return true;
@@ -430,6 +472,33 @@ static void render_test(lgfx::LGFX_Device &d, const UiState &) {
     }
 }
 
+static void render_copies(lgfx::LGFX_Device &d, const UiState &s) {
+    d.setTextColor(TFT_CYAN, TFT_BLACK);
+    d.setTextSize(2);
+    d.setCursor(4, 4);
+    d.print("Copies");
+
+    d.setTextSize(1);
+    d.setTextColor(TFT_DARKGREY, TFT_BLACK);
+    d.setCursor(4, 28);
+    d.print("How many identical cards?");
+
+    // The count, large and centered.
+    unsigned n = s.copies < 1 ? 1 : s.copies;
+    char num[8];
+    int digits = snprintf(num, sizeof(num), "%u", n);
+    d.setTextSize(5);
+    d.setTextColor(TFT_WHITE, TFT_BLACK);
+    int w = digits * 6 * 5; // 6px glyph * size 5
+    d.setCursor((240 - w) / 2, 56);
+    d.print(num);
+
+    d.setTextSize(1);
+    d.setTextColor(TFT_DARKGREY, TFT_BLACK);
+    d.setCursor(4, 110);
+    d.print("type a number, or Up/Dn");
+}
+
 // One key: large QR on the left, full key text wrapped on the right.
 static void render_result_single(lgfx::LGFX_Device &d, const PubKey &pk) {
     d.setTextColor(TFT_CYAN, TFT_BLACK);
@@ -523,6 +592,7 @@ void ui_render(lgfx::LGFX_Device &d, const UiState &s) {
         case Screen::Label:    render_label(d, s);    break;
         case Screen::Confirm:  render_confirm(d, s);  break;
         case Screen::Custom:   render_custom(d, s);   break;
+        case Screen::Copies:   render_copies(d, s);   break;
         case Screen::Test:     render_test(d, s);     break;
         case Screen::Printing: render_printing(d, s); break;
         case Screen::Result:   render_result(d, s);   break;
