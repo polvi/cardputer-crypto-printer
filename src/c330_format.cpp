@@ -75,9 +75,9 @@ std::string mx_message(const std::string &s) {
 namespace {
 
 // `n` coordinate lines, Y050 then +75 each, all at X100.
-std::string layout_rows(int n) {
+std::string layout_rows(int n, int y0 = 50) {
     std::string s;
-    for (int i = 0, y = 50; i < n; ++i, y += 75) {
+    for (int i = 0, y = y0; i < n; ++i, y += 75) {
         char l[24];
         snprintf(l, sizeof(l), "Y%03dX100 CI10", y);
         s += l;
@@ -87,9 +87,10 @@ std::string layout_rows(int n) {
 }
 
 // Two words per line, "%2d %-<pad>s%2d %s", count/2 lines starting at word `start`.
-std::string word_plate(char fmt, const std::string *w, int start, int count, int pad) {
+std::string word_plate(char fmt, const std::string *w, int start, int count, int pad,
+                       int y0 = 50) {
     std::string out = std::string("\n<]F") + fmt + " SY540SX860\n" +
-                      layout_rows(count / 2) + ">\n\n<";
+                      layout_rows(count / 2, y0) + ">\n\n<";
     for (int i = 0; i < count; i += 2) {
         char line[48];
         snprintf(line, sizeof(line), "%2d %-*s%2d %s",
@@ -102,11 +103,26 @@ std::string word_plate(char fmt, const std::string *w, int start, int count, int
     return to_upper(out);
 }
 
+// One word per line, "%2d %s", `count` lines starting at word `start`.
+std::string word_plate_single(char fmt, const std::string *w, int start, int count,
+                              int y0) {
+    std::string out = std::string("\n<]F") + fmt + " SY540SX860\n" +
+                      layout_rows(count, y0) + ">\n\n<";
+    for (int i = 0; i < count; ++i) {
+        char line[40];
+        snprintf(line, sizeof(line), "%2d %s", start + i + 1, w[start + i].c_str());
+        out += line;
+        if (i < count - 1) out += "\n";
+    }
+    out += ">\n";
+    return to_upper(out);
+}
+
 } // namespace
 
 std::vector<std::string> wallet_info_lines(WalletKind k) {
     if (k == WalletKind::Xmr)
-        return {"MONERO", "16 WORD POLYSEED", "ACCOUNT NUMBER 0"};
+        return {"MONERO", "25 WORD MNEMONIC SEED", "ACCOUNT NUMBER 0"};
     return {"24 WORD BIP32 MNEMONIC", "BTC BIP84 PATH", "M/84'/0'/0'/0/0",
             "ETH BIP44 PATH", "M/44'/60'/0'/0/0"};
 }
@@ -131,11 +147,16 @@ std::string plate_mnemonic_13_24(const std::array<std::string, 24> &words) {
     return word_plate('2', words.data(), 12, 12, 11);
 }
 
-std::string plate_polyseed_1_8(const std::array<std::string, 16> &words) {
-    return word_plate('1', words.data(), 0, 8, 9);
+// XMR 25-word seed: 5 rows/plate at Y085 step 75, words padded to 12 (per
+// keyprint.go). Plates 1-10 and 11-20 are two-per-row; 21-25 is one-per-row.
+std::string plate_xmr_words_1_10(const std::array<std::string, 25> &words) {
+    return word_plate('1', words.data(), 0, 10, 12, 85);
 }
-std::string plate_polyseed_9_16(const std::array<std::string, 16> &words) {
-    return word_plate('2', words.data(), 8, 8, 9);
+std::string plate_xmr_words_11_20(const std::array<std::string, 25> &words) {
+    return word_plate('1', words.data(), 10, 10, 12, 85);
+}
+std::string plate_xmr_words_21_25(const std::array<std::string, 25> &words) {
+    return word_plate_single('1', words.data(), 20, 5, 85);
 }
 
 std::string plate_addresses(const std::string &btc, const std::string &eth,

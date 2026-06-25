@@ -68,10 +68,11 @@ std::string plate_addresses(const std::string &btc, const std::string &eth,
                             const std::string &btc_header, const std::string &eth_header,
                             const std::string &message, const std::string &date);
 
-// --- XMR (polyseed, 16 words) ---
-// F1 words 1-8 / F2 words 9-16, two words per line.
-std::string plate_polyseed_1_8(const std::array<std::string, 16> &words);
-std::string plate_polyseed_9_16(const std::array<std::string, 16> &words);
+// --- XMR (legacy 25-word seed) ---
+// 5 rows/plate at Y085: words 1-10 and 11-20 are two-per-row, 21-25 one-per-row.
+std::string plate_xmr_words_1_10(const std::array<std::string, 25> &words);
+std::string plate_xmr_words_11_20(const std::array<std::string, 25> &words);
+std::string plate_xmr_words_21_25(const std::array<std::string, 25> &words);
 
 // F3 public-key page — "MINTED ON <date>" + optional message + the 95-char
 // monero address split across four stacked, hyphen-joined lines.

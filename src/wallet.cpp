@@ -10,7 +10,7 @@
 // Real derivation on the device (behind the crypto foundation). Declared here,
 // defined in the device-only path.
 bool wallet_generate(std::array<std::string, 24> &words, std::string &btc, std::string &eth);
-bool wallet_generate_xmr(std::array<std::string, 16> &words, std::string &addr);
+bool wallet_generate_xmr(std::array<std::string, 25> &words, std::string &addr);
 #endif
 
 namespace {
@@ -57,15 +57,18 @@ bool wallet_generate(std::array<std::string, 24> &words, std::string &btc, std::
     return true;
 }
 
-bool wallet_generate_xmr(std::array<std::string, 16> &words, std::string &addr) {
-    static const char *kPoly[16] = { // canonical polyseed test phrase
-        "raven", "tail", "swear", "infant", "grief", "assist", "regular", "lamp",
-        "duck", "valid", "someone", "little", "harsh", "puppy", "airport", "language",
+bool wallet_generate_xmr(std::array<std::string, 25> &words, std::string &addr) {
+    // Legacy 25-word Monero seed for a fixed test spend key (entropy 0123..ef ->
+    // sc_reduce32). Words + address verified natively, byte-for-byte vs
+    // docs/keyprint.go. The device derives a random one the same way.
+    static const char *kSeed[25] = {
+        "slower", "aisle", "gorilla", "antics", "lemon", "okay", "potato", "lullaby",
+        "abbey", "family", "gained", "bluntly", "veteran", "enigma", "pierce", "films",
+        "adept", "voted", "vexed", "enjoy", "pigment", "upcoming", "delayed", "emulate",
+        "abbey",
     };
-    for (int i = 0; i < 16; ++i) words[i] = kPoly[i];
-    // Real monero address for this exact polyseed phrase (verified natively;
-    // key->address matches keyprint.go byte-for-byte). The device derives it.
-    addr = "47AjPj7DVPQVGGXJXbbTMZWcKQDejGHYZChVkeujy8qPLjKkgdsxge4DzvkRMgU4sDUigGLuBN9stKBMowhuXH2HJHWAuRf";
+    for (int i = 0; i < 25; ++i) words[i] = kSeed[i];
+    addr = "4B3ut4pQGkxcUW41Qz3Fd3T6PnNY8JP5y7Re14xJR71CJj3W7SrZvCdDn9X981h8g1GdaRdvaj5Tv4JbTVvrmhXP8XTWijA";
     return true;
 }
 #endif
@@ -98,16 +101,18 @@ bool print_btceth(const std::string &label, SendFn sink, WalletPublic &out) {
     return ok;
 }
 
-// XMR (16-word polyseed): info, polyseed 9-16, polyseed 1-8, monero address.
+// XMR (25-word seed): info, words 21-25, 11-20, 1-10, monero address. Word order
+// (high plates first) follows keyprint.go's send order.
 bool print_xmr(const std::string &label, SendFn sink, WalletPublic &out) {
-    std::array<std::string, 16> words;
+    std::array<std::string, 25> words;
     std::string addr;
     if (!wallet_generate_xmr(words, addr)) return false;
     out.keys.push_back({"XMR", addr});
     std::vector<std::string> plates = {
         c330::plate_info(c330::WalletKind::Xmr),
-        c330::plate_polyseed_9_16(words),
-        c330::plate_polyseed_1_8(words),
+        c330::plate_xmr_words_21_25(words),
+        c330::plate_xmr_words_11_20(words),
+        c330::plate_xmr_words_1_10(words),
         c330::plate_xmr_address(addr, "XMR", label, kMintDate),
     };
     bool ok = send_plates(plates, sink);

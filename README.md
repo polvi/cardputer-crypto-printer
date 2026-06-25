@@ -33,7 +33,7 @@ the device and the desktop simulator:
    caret. Enter continues, Esc goes back. (For **Custom**, this step is instead a
    multi-line editor — see below.)
 3. **Confirm** — shows the wallet name, the **per-key details** (the same lines as
-   the info plate, e.g. "MONERO / 16 WORD POLYSEED / ACCOUNT NUMBER 0"), and the
+   the info plate, e.g. "MONERO / 25 WORD MNEMONIC SEED / ACCOUNT NUMBER 0"), and the
    label. **Press the top G0 button once** to print the whole wallet.
 4. **Printing** — generates the wallet and streams every plate to the C330.
 5. **Result** — the **public address(es)** are shown as **QR codes** (BTC + ETH
@@ -47,9 +47,10 @@ format/order of the reference tool `docs/keyprint.go` (verified against it):
 - **BTC+ETH** (one 24-word BIP39 seed): info `]F0` ("POLVI HD WALLET / 24 WORD
   BIP32 MNEMONIC / BTC BIP84 PATH … / ETH BIP44 PATH …") → mnemonic 13-24 `]F2` →
   1-12 `]F1` → addresses `]F3` (BTC + ETH).
-- **XMR** (16-word **polyseed**): info `]F0` ("POLVI HD WALLET / MONERO / 16 WORD
-  POLYSEED / ACCOUNT NUMBER 0") → polyseed 9-16 `]F2` → 1-8 `]F1` → monero address
-  `]F3` (95 chars split across four hyphenated lines).
+- **XMR** (legacy **25-word** Monero seed — what the Monero GUI / Cake Wallet
+  restore; polyseed isn't supported by the GUI yet): info `]F0` ("POLVI HD WALLET /
+  MONERO / 25 WORD MNEMONIC SEED / ACCOUNT NUMBER 0") → words 21-25 → 11-20 → 1-10
+  (`]F1`) → monero address `]F3` (95 chars split across four hyphenated lines).
 - **Custom**: an `]F0` plate with up to **4 free-form lines** (≤26 chars each),
   folded to uppercase and restricted to the C330 charset. No crypto, no QR — the
   editor is a small multi-line text field (Enter = new line). G0/⌘+Enter goes to a
@@ -86,14 +87,15 @@ the public addresses come back for the QR screen.
 >   stub made trezor's side-channel Z-blinding loop forever; a real RNG fixes it.
 >   The **sim** uses the fixed 24-word test mnemonic and shows the real addresses
 >   it derives.
-> - **XMR — real, on-device** (`lib/polyseed` + trezor's Monero module). SAR-ADC
->   entropy → 16-word **polyseed** → PBKDF2 key → Monero spend/view → ed25519
->   pubkeys → `4…` address (monero base58). The polyseed→key→address chain was
->   **verified natively**: polyseed decodes (canonical lib), and the key→address
->   step matches `docs/keyprint.go` byte-for-byte (its own Monero scheme), e.g.
->   `raven tail swear … language` → `47AjPj7DVPQVGGXJXbbTMZWcKQDejGHYZ…AuRf`.
->   The sim shows that phrase + address. *Final acceptance: restore a printed
->   polyseed into a real Monero wallet and confirm it matches the QR.*
+> - **XMR — real, on-device** (legacy **25-word** seed + trezor's Monero module).
+>   SAR-ADC entropy → `sc_reduce32` → secret spend key → **25 words** (Monero
+>   English wordlist `src/xmr_wordlist.h`, 24 words + CRC32 checksum word) → Monero
+>   spend/view → ed25519 pubkeys → `4…` address (monero base58). The whole chain is
+>   **verified natively, byte-for-byte vs `docs/keyprint.go`**: a fixed spend key →
+>   `slower aisle gorilla … emulate abbey` →
+>   `4B3ut4pQGkxcUW41Qz3Fd3T6PnNY8JP5y7Re14xJR71…XTWijA` (matched by both the words
+>   and the address). The sim shows that seed + address. *Restorable in the Monero
+>   GUI / Cake Wallet; final acceptance: restore it and confirm the address.*
 
 ## Printer link
 
@@ -235,7 +237,8 @@ buffer overflow (a flow-control problem — shouldn't happen with Xon/Xoff), **E
 LCD is your source of truth for printer-side errors.
 
 > **Final XMR acceptance:** before trusting a Monero card with funds, restore its
-> printed polyseed into a real Monero wallet and confirm the address matches the QR.
+> printed 25-word seed into a real Monero wallet (GUI or Cake Wallet) and confirm
+> the address matches the QR.
 
 ## Files
 
@@ -244,7 +247,8 @@ LCD is your source of truth for printer-side errors.
 | `platformio.ini` | Two envs: `m5stack-cardputer` (firmware) + `sim` (desktop UI) |
 | `sdkconfig.defaults` | IDF settings: 1000 Hz tick, C++ exceptions, Arduino autostart, BT off |
 | `src/ui.h` / `src/ui.cpp` | Hardware-independent UI: screen state machine, input, rendering |
-| `src/c330_format.h` / `.cpp` | C330 plate format (BTC+ETH BIP39 + XMR polyseed), per-key info lines |
+| `src/c330_format.h` / `.cpp` | C330 plate format (BTC+ETH BIP39 + XMR 25-word), per-key info lines |
+| `src/xmr_wordlist.h` | Monero English wordlist (1626 words) for the 25-word seed |
 | `src/wallet.h` / `src/wallet.cpp` | Security seam: generate → emboss → zeroize; key-gen behind `WALLET_REAL_CRYPTO` |
 | `src/main.cpp` | Device front-end: keyboard + G0 button + USB-host FTDI bridge + Xon/Xoff |
 | `src/sim_main.cpp` | Desktop front-end: SDL window + Mac keyboard (Enter prints) |
