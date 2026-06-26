@@ -135,32 +135,32 @@ std::string plate_info(WalletKind k) {
         text += lines[i];
         if (i + 1 < lines.size()) text += "\n";
     }
-    std::string out = "\n<]F0 SY540SX860\n" + layout_rows((int)lines.size()) +
+    std::string out = "\n<]F3 SY540SX860\n" + layout_rows((int)lines.size()) +
                       ">\n\n<" + text + ">\n";
     return to_upper(out);
 }
 
 std::string plate_mnemonic_1_12(const std::array<std::string, 24> &words) {
-    return word_plate('1', words.data(), 0, 12, 11);
+    return word_plate('3', words.data(), 0, 12, 11);
 }
 std::string plate_mnemonic_13_24(const std::array<std::string, 24> &words) {
-    return word_plate('2', words.data(), 12, 12, 11);
+    return word_plate('3', words.data(), 12, 12, 11);
 }
 
-// XMR 25-word seed: 5 rows/plate at Y085 step 75, words padded to 12 (per
-// keyprint.go). Plates 1-10 and 11-20 are two-per-row; 21-25 is one-per-row.
-// DISTINCT format numbers (F1/F2/F3) so we never redefine a stored format slot
-// (F0-F2): the C330 only stores 3 formats, and redefining one mid-job bloats its
-// format memory -> E37 field-buffer overflow on a later card. (Send order is
-// info=F0, 21-25=F1, 11-20=F2, 1-10=F3, address=F3; F3 isn't a stored slot.)
+// EVERY wallet card uses the transient format F3 (never F0-F2). The C330 only has
+// 3 STORED format slots (F0-F2); each card that defines one of those leaves it in
+// the printer's format/field memory, and by the last card (the public-key card)
+// that memory is full -> E37 field-buffer overflow. F3 is not a stored slot, so
+// redefining it per card leaves nothing behind. (The public-key card prints fine
+// in isolation precisely because nothing was stored before it.)
 std::string plate_xmr_words_1_10(const std::array<std::string, 25> &words) {
     return word_plate('3', words.data(), 0, 10, 12, 85);
 }
 std::string plate_xmr_words_11_20(const std::array<std::string, 25> &words) {
-    return word_plate('2', words.data(), 10, 10, 12, 85);
+    return word_plate('3', words.data(), 10, 10, 12, 85);
 }
 std::string plate_xmr_words_21_25(const std::array<std::string, 25> &words) {
-    return word_plate_single('1', words.data(), 20, 5, 85);
+    return word_plate_single('3', words.data(), 20, 5, 85);
 }
 
 std::string plate_addresses(const std::string &btc, const std::string &eth,

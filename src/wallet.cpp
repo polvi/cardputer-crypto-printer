@@ -101,8 +101,9 @@ bool print_btceth(const std::string &label, SendFn sink, WalletPublic &out) {
     return ok;
 }
 
-// XMR (25-word seed): info(F0), words 21-25(F1), 11-20(F2), 1-10(F3), address(F3).
-// Distinct format numbers avoid redefining a stored C330 format slot (F0-F2).
+// XMR (25-word seed): info, words 21-25, 11-20, 1-10, address. Every card uses the
+// transient format F3 (not a stored slot), so nothing accumulates in the printer's
+// format/field memory across the job (the cause of E37 on the public-key card).
 // Word order (high plates first) follows keyprint.go's send order.
 bool print_xmr(const std::string &label, SendFn sink, WalletPublic &out) {
     std::array<std::string, 25> words;
@@ -161,6 +162,7 @@ bool mock_xmr_addr_print(SendFn sink) {
     // Fixed, verified 95-char monero address (the sim test vector).
     const std::string addr =
         "4B3ut4pQGkxcUW41Qz3Fd3T6PnNY8JP5y7Re14xJR71CJj3W7SrZvCdDn9X981h8g1GdaRdvaj5Tv4JbTVvrmhXP8XTWijA";
-    std::vector<std::string> plates = {c330::plate_xmr_address(addr, "XMR", "", kMintDate)};
+    std::vector<std::string> plates = {
+        c330::plate_xmr_address(addr, "XMR", "MOCK PUBKEY TEST", kMintDate)};
     return send_plates(plates, sink);
 }
