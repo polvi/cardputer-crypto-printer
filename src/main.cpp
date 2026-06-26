@@ -202,8 +202,10 @@ static esp_err_t c330_write_raw(const char *data, size_t len) {
 // to finish embossing so its field data clears before the next streams in.
 // Otherwise the field buffer fills and the printer reports E37 on a later card.
 // keyprint.go gets this pacing from the operator pressing Enter between cards.
-// kInterCardMs should be >= the time the C330 takes to emboss one card; tune it.
-static constexpr int kInterCardMs = 22000;
+// kInterCardMs must be >= the time the C330 takes to emboss one card (measured at
+// ~55 s on this unit), with a little margin. The card buffer holds a few cards, so
+// a small overrun is absorbed; the physical emboss time dominates regardless.
+static constexpr int kInterCardMs = 60000;
 static bool g_job_started = false; // reset false at the start of each print job
 
 static void pace_between_cards() {
