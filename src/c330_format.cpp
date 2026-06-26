@@ -211,30 +211,26 @@ std::string plate_addresses(const std::string &btc, const std::string &eth,
 
 std::string plate_xmr_address(const std::string &addr, const std::string &header,
                               const std::string &message, const std::string &date) {
-    // The 95-char monero address split into 4 hyphen-joined lines (22/24/24/25)
-    // per keyprint.go PKey_XMR_Addr_Message2..5; mixed-case -> row-stacking. One
-    // F3 card (F3 isn't a stored format slot, so it doesn't collide with F0-F2).
-    const std::string MNT = mx_message(to_upper("MINTED ON " + date));
-    const std::string MSG = mx_message(to_upper(message));
-    const std::string m2 = mx_message(to_upper(header) + addr.substr(0, 22) + "-");
-    const std::string m3 = mx_message("-" + (addr.size() > 22 ? addr.substr(22, 24) : std::string()) + "-");
-    const std::string m4 = mx_message("-" + (addr.size() > 46 ? addr.substr(46, 24) : std::string()) + "-");
-    const std::string m5 = mx_message("-" + (addr.size() > 70 ? addr.substr(70) : std::string()));
+    // The 95-char monero address split into 4 hyphen-joined lines (22/24/24/25),
+    // mixed-case -> row-stacking. F2 card. Build the logical lines in order and
+    // SKIP the message line when it is empty (an empty field upsets the C330's
+    // parser -> E37). Layout and text are built in the SAME order so coords match.
+    std::vector<std::string> raw;
+    if (!message.empty()) raw.push_back(to_upper(message));
+    raw.push_back(to_upper("MINTED ON " + date));
+    raw.push_back(to_upper(header) + addr.substr(0, 22) + "-");
+    raw.push_back("-" + (addr.size() > 22 ? addr.substr(22, 24) : std::string()) + "-");
+    raw.push_back("-" + (addr.size() > 46 ? addr.substr(46, 24) : std::string()) + "-");
+    raw.push_back("-" + (addr.size() > 70 ? addr.substr(70) : std::string()));
 
-    const std::string layout_msgs[6] = {MNT, MSG, m2, m3, m4, m5};
-    std::string layout;
-    for (int i = 0, y = 50; i < 6; ++i, y += 75) {
-        layout += mx_layout(layout_msgs[i], y, 100);
-        if (i < 5) layout += "\n";
+    std::string layout, text;
+    for (size_t i = 0, y = 50; i < raw.size(); ++i, y += 75) {
+        std::string m = mx_message(raw[i]);
+        layout += mx_layout(m, (int)y, 100);
+        text += m;
+        if (i + 1 < raw.size()) { layout += "\n"; text += "\n"; }
     }
-    const std::string text_msgs[6] = {MSG, MNT, m2, m3, m4, m5};
-    std::string text;
-    for (int i = 0; i < 6; ++i) {
-        text += text_msgs[i];
-        if (i < 5) text += "\n";
-    }
-    std::string out = "\n<]F2 SY540SX860\n" + layout + ">\n\n<" + text + ">\n";
-    return to_upper(out);
+    return to_upper("\n<]F2 SY540SX860\n" + layout + ">\n\n<" + text + ">\n");
 }
 
 std::string plate_custom(const std::vector<std::string> &lines) {
