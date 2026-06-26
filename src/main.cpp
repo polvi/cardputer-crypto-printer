@@ -79,6 +79,7 @@ static constexpr uint8_t XOFF = 0x13;
 static volatile uint32_t g_rx_total = 0;
 static volatile uint32_t g_xoff_total = 0;
 static volatile uint32_t g_xon_total = 0;
+static volatile uint32_t g_card_idx = 0; // which card in the current job (1-based)
 static bool handle_rx(const uint8_t *data, size_t len, void *arg) {
     g_rx_total += len;
     for (size_t i = 0; i < len; ++i) {
@@ -209,10 +210,27 @@ static esp_err_t c330_write_raw(const char *data, size_t len) {
         d.setTextColor(g_cts ? TFT_GREEN : TFT_RED, TFT_BLACK);
         d.setCursor(2, 1);
         char b[64];
-        snprintf(b, sizeof(b), "TX%u/%u RX%u XF%u XN%u C%d", (unsigned)(off + n),
-                 (unsigned)len, (unsigned)g_rx_total, (unsigned)g_xoff_total,
-                 (unsigned)g_xon_total, (int)g_cts);
+        snprintf(b, sizeof(b), "#%u TX%u/%u RX%u XF%u XN%u C%d", (unsigned)g_card_idx,
+                 (unsigned)(off + n), (unsigned)len, (unsigned)g_rx_total,
+                 (unsigned)g_xoff_total, (unsigned)g_xon_total, (int)g_cts);
         d.print(b);
+    }
+
+    // Wait for the printer to FINISH embossing this card before returning. The
+    // earlier cards were paced only by the *next* card's startup XOFF-wait; the
+    // final card has no next card, so we'd otherwise fire its bytes and flip
+    // straight to the QR while the printer is still draining the previous card --
+    // overrunning its field buffer (E37). The C330 holds XOFF (g_cts=false) while
+    // embossing and returns to a steady XON when the card is done.
+    if (err == ESP_OK && g_ready) {
+        for (int w = 0; w < 5000 && g_cts && g_ready; w += 20)
+            vTaskDelay(pdMS_TO_TICKS(20)); // (a) wait for the emboss to START (XOFF)
+        int steady = 0;                    // (b) then for it to FINISH (XON held)
+        for (int w = 0; w < 90000 && g_ready; w += 20) {
+            vTaskDelay(pdMS_TO_TICKS(20));
+            steady = g_cts ? steady + 20 : 0;
+            if (steady >= 700) break; // XON steady 700ms -> card embossed, printer idle
+        }
     }
     xSemaphoreGive(g_vcp_mutex);
     return err;
@@ -222,6 +240,7 @@ static esp_err_t c330_write_raw(const char *data, size_t len) {
 // control paces it against the printer's emboss speed.
 static bool device_send(const char *data, unsigned len) {
     if (!g_ready) return false;
+    ++g_card_idx; // one device_send per plate/card
     return c330_write_raw(data, len) == ESP_OK;
 }
 
@@ -291,6 +310,7 @@ void loop() {
     // Run a requested print after the "Printing…" frame is on screen. This blocks
     // (streaming all plates, FTDI-flow-controlled) until the wallet is sent.
     if (ui_pending_print(g_ui)) {
+        g_card_idx = 0; // restart the per-job card counter (debug overlay)
         ui_run_print(g_ui);
         ui_render(M5Cardputer.Display, g_ui);
     }

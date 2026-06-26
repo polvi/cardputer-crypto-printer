@@ -173,7 +173,7 @@ bool mock_xmr_addr_print(SendFn sink) {
         c330::plate_xmr_words_21_25(words),
         c330::plate_xmr_words_11_20_text(words),
         c330::plate_xmr_words_1_10_text(words),
-        c330::plate_xmr_address(addr, "XMR", "", kMintDate),
+        c330::plate_xmr_address(addr, "XMR", "CAKE5", kMintDate),
     };
     return send_plates(plates, sink);
 }
