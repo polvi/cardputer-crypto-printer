@@ -183,9 +183,9 @@ static esp_err_t c330_write_raw(const char *data, size_t len) {
     xSemaphoreTake(g_vcp_mutex, portMAX_DELAY);
     esp_err_t err = g_vcp ? ESP_OK : ESP_ERR_INVALID_STATE;
     for (size_t off = 0; off < len && err == ESP_OK; off += kChunk) {
-        // Wait out an XOFF (cap the wait so a stuck machine can't deadlock us).
-        for (int spins = 0; !g_cts && spins < 24000; ++spins) {
-            vTaskDelay(pdMS_TO_TICKS(5)); // ~120 s ceiling
+        // Wait out an XOFF; bail if the printer is unplugged or it stalls too long.
+        for (int spins = 0; !g_cts && g_ready && spins < 12000; ++spins) {
+            vTaskDelay(pdMS_TO_TICKS(5)); // ~60 s ceiling
         }
         size_t n = (len - off < kChunk) ? (len - off) : kChunk;
         err = g_vcp->tx_blocking(
@@ -204,7 +204,7 @@ static esp_err_t c330_write_raw(const char *data, size_t len) {
 static void wait_for_card_done() {
     vTaskDelay(pdMS_TO_TICKS(400)); // let the C330 assert XOFF if it's now busy
     int clear = 0;
-    for (int i = 0; i < 24000; ++i) {            // ~120 s safety cap
+    for (int i = 0; i < 12000 && g_ready; ++i) { // ~60 s cap; bail on disconnect
         if (g_cts) {
             if (++clear >= 400) return;          // 400 * 5ms = 2 s of continuous XON
         } else {
