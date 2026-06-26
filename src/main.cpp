@@ -157,16 +157,6 @@ static void usb_host_task(void *arg) {
         }
         dev->set_control_line_state(true, true); // DTR, RTS
 
-        // Enable the FTDI chip's HARDWARE Xon/Xoff so the chip itself stops feeding
-        // the printer the instant it sees XOFF (0x13) and resumes on XON (0x11) —
-        // it won't drain its TX buffer past an XOFF. This is what makes CUPS's
-        // serial flow=soft work; doing it host-side can't recall bytes already in
-        // the chip. FTDI SET_FLOW_CTRL: bRequest 0x02, wValue = Xon | Xoff<<8,
-        // wIndex = SIO_XON_XOFF_HS(0x0400) | port. With this on, tx_blocking() just
-        // back-pressures us while the printer embosses.
-        if (dev->send_custom_request(0x40, 0x02, (0x13 << 8) | 0x11, 0x0400, 0, nullptr) != ESP_OK)
-            ESP_LOGW(TAG, "FTDI Xon/Xoff enable failed");
-
         xSemaphoreTake(g_vcp_mutex, portMAX_DELAY);
         g_vcp.reset(dev);
         xSemaphoreGive(g_vcp_mutex);
@@ -183,22 +173,26 @@ static void usb_host_task(void *arg) {
     }
 }
 
-// Low-level write to the C330. The FTDI chip does hardware Xon/Xoff (enabled at
-// connect), so it back-pressures us while the printer embosses: tx_blocking() just
-// blocks until the chip can accept more. A long per-chunk timeout covers a card
-// that the printer parses slowly (its field buffer fills, it XOFFs, embosses, then
-// XONs). We keep the software XOFF check too as a belt-and-suspenders. Returns
+// Low-level write to the C330. The C330 paces us with Xon/Xoff, but the catch is
+// the FTDI chip's own TX buffer: if we dump a card into it over USB, the chip keeps
+// clocking those bytes to the printer at 9600 baud even after the printer asserts
+// XOFF, overrunning the printer's field buffer on a big card (E37). So we send in
+// SMALL chunks and wait after each for the chip to drain that chunk to the printer
+// (16 bytes @ 9600 baud ~= 17ms) before sending more. That keeps the chip buffer
+// nearly empty, so when the printer XOFFs we have only a few bytes in flight — like
+// CUPS's byte-level flow=soft. We also gate on the software XOFF (g_cts). Returns
 // ESP_OK on success.
 static esp_err_t c330_write_raw(const char *data, size_t len) {
-    static constexpr size_t kChunk = 64;
+    static constexpr size_t kChunk = 16;
     xSemaphoreTake(g_vcp_mutex, portMAX_DELAY);
     esp_err_t err = g_vcp ? ESP_OK : ESP_ERR_INVALID_STATE;
     for (size_t off = 0; off < len && err == ESP_OK; off += kChunk) {
-        for (int spins = 0; !g_cts && g_ready && spins < 12000; ++spins)
-            vTaskDelay(pdMS_TO_TICKS(5)); // wait out a software XOFF; bail on unplug
+        for (int spins = 0; !g_cts && g_ready && spins < 24000; ++spins)
+            vTaskDelay(pdMS_TO_TICKS(5)); // wait out an XOFF; bail on unplug
         size_t n = (len - off < kChunk) ? (len - off) : kChunk;
         err = g_vcp->tx_blocking(
-            reinterpret_cast<uint8_t *>(const_cast<char *>(data + off)), n, 90000);
+            reinterpret_cast<uint8_t *>(const_cast<char *>(data + off)), n, 5000);
+        vTaskDelay(pdMS_TO_TICKS(25)); // let the chip clock this chunk to the printer
     }
     xSemaphoreGive(g_vcp_mutex);
     return err;
