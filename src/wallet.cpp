@@ -112,11 +112,9 @@ bool print_xmr(const std::string &label, SendFn sink, WalletPublic &out) {
     out.keys.push_back({"XMR", addr});
     std::vector<std::string> plates = {
         c330::plate_info(c330::WalletKind::Xmr),
-        c330::plate_xmr_words(words, 20, true),  // F1 def + words 21-25
-        c330::plate_xmr_words(words, 15, false), // 16-20
-        c330::plate_xmr_words(words, 10, false), // 11-15
-        c330::plate_xmr_words(words, 5, false),  // 6-10
-        c330::plate_xmr_words(words, 0, false),  // 1-5
+        c330::plate_xmr_words_21_25(words),
+        c330::plate_xmr_words_11_20_text(words),
+        c330::plate_xmr_words_1_10_text(words),
         c330::plate_xmr_address(addr, "XMR", label, kMintDate),
     };
     bool ok = send_plates(plates, sink);
@@ -163,22 +161,18 @@ bool test_print(SendFn sink) {
 bool mock_xmr_addr_print(SendFn sink) {
     // Full mock XMR wallet (fixed data) so the multi-card path can be tested
     // repeatably without generating a real seed. Same cards/formats as print_xmr.
-    // Includes the longest Monero words (VERIFICATION/DEMONSTRATE, 12/11 chars) so
-    // the mock exercises the worst-case line width.
     std::array<std::string, 25> words = {
-        "VERIFICATION", "AISLE", "GORILLA", "DEMONSTRATE", "LEMON", "OKAY", "POTATO",
-        "LULLABY", "VERIFICATION", "FAMILY", "GAINED", "BLUNTLY", "VERIFICATION",
-        "ENIGMA", "PIERCE", "FILMS", "DEMONSTRATE", "VOTED", "VEXED", "ENJOY",
-        "PIGMENT", "UPCOMING", "DEMONSTRATE", "EMULATE", "VERIFICATION"};
+        "SLOWER", "AISLE", "GORILLA", "ANTICS", "LEMON", "OKAY", "POTATO", "LULLABY",
+        "ABBEY", "FAMILY", "GAINED", "BLUNTLY", "VETERAN", "ENIGMA", "PIERCE", "FILMS",
+        "ADEPT", "VOTED", "VEXED", "ENJOY", "PIGMENT", "UPCOMING", "DELAYED", "EMULATE",
+        "ABBEY"};
     const std::string addr =
         "4B3ut4pQGkxcUW41Qz3Fd3T6PnNY8JP5y7Re14xJR71CJj3W7SrZvCdDn9X981h8g1GdaRdvaj5Tv4JbTVvrmhXP8XTWijA";
     std::vector<std::string> plates = {
         c330::plate_info(c330::WalletKind::Xmr),
-        c330::plate_xmr_words(words, 20, true),
-        c330::plate_xmr_words(words, 15, false),
-        c330::plate_xmr_words(words, 10, false),
-        c330::plate_xmr_words(words, 5, false),
-        c330::plate_xmr_words(words, 0, false),
+        c330::plate_xmr_words_21_25(words),
+        c330::plate_xmr_words_11_20_text(words),
+        c330::plate_xmr_words_1_10_text(words),
         c330::plate_xmr_address(addr, "XMR", "MOCK TEST", kMintDate),
     };
     return send_plates(plates, sink);
