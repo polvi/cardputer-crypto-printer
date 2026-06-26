@@ -195,32 +195,30 @@ static esp_err_t c330_write_raw(const char *data, size_t len) {
     return err;
 }
 
-// After a card's bytes are sent, the C330 feeds + embosses it (several seconds),
-// holding XOFF while its field buffer is busy. We must NOT stream the next card on
-// top of it, or the buffered field data piles up and the printer reports E37
-// (field-buffer overflow) on a later card. keyprint.go avoids this by waiting for
-// an operator keypress between every card; we do it automatically by waiting until
-// the printer has been continuously clear-to-send (XON) for a settle window.
-static void wait_for_card_done() {
-    vTaskDelay(pdMS_TO_TICKS(400)); // let the C330 assert XOFF if it's now busy
-    int clear = 0;
-    for (int i = 0; i < 12000 && g_ready; ++i) { // ~60 s cap; bail on disconnect
-        if (g_cts) {
-            if (++clear >= 400) return;          // 400 * 5ms = 2 s of continuous XON
-        } else {
-            clear = 0;                           // still embossing — keep waiting
-        }
-        vTaskDelay(pdMS_TO_TICKS(5));
-    }
+// The C330 buffers cards and embosses them in the background; it does NOT assert
+// XOFF per card (XOFF only guards its small serial RX buffer, not the parsed
+// field buffer). So we can't detect "card done" from flow control — we pace by
+// TIME: before each card after the first, wait long enough for the previous card
+// to finish embossing so its field data clears before the next streams in.
+// Otherwise the field buffer fills and the printer reports E37 on a later card.
+// keyprint.go gets this pacing from the operator pressing Enter between cards.
+// kInterCardMs should be >= the time the C330 takes to emboss one card; tune it.
+static constexpr int kInterCardMs = 22000;
+static bool g_job_started = false; // reset false at the start of each print job
+
+static void pace_between_cards() {
+    for (int i = 0; i < kInterCardMs / 5 && g_ready; ++i)
+        vTaskDelay(pdMS_TO_TICKS(5)); // bail immediately if the printer is unplugged
 }
 
-// Sink the UI hands framed payload bytes to. Writes one card to the C330, then
-// waits for it to finish before returning, so cards are paced one at a time.
+// Sink the UI hands framed payload bytes to. Paces one card at a time: waits for
+// the previous card to emboss before streaming the next (no wait after the last,
+// so the Result screen appears promptly).
 static bool device_send(const char *data, unsigned len) {
     if (!g_ready) return false;
-    if (c330_write_raw(data, len) != ESP_OK) return false;
-    wait_for_card_done();
-    return true;
+    if (g_job_started) pace_between_cards();
+    g_job_started = true;
+    return c330_write_raw(data, len) == ESP_OK;
 }
 
 // =============================================================================
@@ -287,8 +285,9 @@ void loop() {
     if (dirty) ui_render(M5Cardputer.Display, g_ui);
 
     // Run a requested print after the "Printing…" frame is on screen. This blocks
-    // (streaming all plates, honoring Xon/Xoff) until the wallet is sent.
+    // (streaming all plates, pacing one card at a time) until the wallet is sent.
     if (ui_pending_print(g_ui)) {
+        g_job_started = false; // first card of this job streams immediately
         ui_run_print(g_ui);
         ui_render(M5Cardputer.Display, g_ui);
     }
