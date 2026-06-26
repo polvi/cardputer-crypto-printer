@@ -103,21 +103,6 @@ std::string word_plate(char fmt, const std::string *w, int start, int count, int
     return to_upper(out);
 }
 
-// Build one F3 card from raw (possibly mixed-case) message lines. Each line is
-// case-stacked (mx_message) into two rows 7 units apart, with matching mx_layout
-// coords at Y050 step 75. Keeping few lines per card holds the C330 field buffer
-// under its limit (too many stacked rows on one card -> E37 field-buffer overflow).
-std::string f3_card(const std::vector<std::string> &raw) {
-    std::string layout, text;
-    for (size_t i = 0, y = 50; i < raw.size(); ++i, y += 75) {
-        std::string m = mx_message(raw[i]);
-        layout += mx_layout(m, (int)y, 100);
-        text += m;
-        if (i + 1 < raw.size()) { layout += "\n"; text += "\n"; }
-    }
-    return to_upper("\n<]F3 SY540SX860\n" + layout + ">\n\n<" + text + ">\n");
-}
-
 // One word per line, "%2d %s", `count` lines starting at word `start`.
 std::string word_plate_single(char fmt, const std::string *w, int start, int count,
                               int y0) {
@@ -164,11 +149,15 @@ std::string plate_mnemonic_13_24(const std::array<std::string, 24> &words) {
 
 // XMR 25-word seed: 5 rows/plate at Y085 step 75, words padded to 12 (per
 // keyprint.go). Plates 1-10 and 11-20 are two-per-row; 21-25 is one-per-row.
+// DISTINCT format numbers (F1/F2/F3) so we never redefine a stored format slot
+// (F0-F2): the C330 only stores 3 formats, and redefining one mid-job bloats its
+// format memory -> E37 field-buffer overflow on a later card. (Send order is
+// info=F0, 21-25=F1, 11-20=F2, 1-10=F3, address=F3; F3 isn't a stored slot.)
 std::string plate_xmr_words_1_10(const std::array<std::string, 25> &words) {
-    return word_plate('1', words.data(), 0, 10, 12, 85);
+    return word_plate('3', words.data(), 0, 10, 12, 85);
 }
 std::string plate_xmr_words_11_20(const std::array<std::string, 25> &words) {
-    return word_plate('1', words.data(), 10, 10, 12, 85);
+    return word_plate('2', words.data(), 10, 10, 12, 85);
 }
 std::string plate_xmr_words_21_25(const std::array<std::string, 25> &words) {
     return word_plate_single('1', words.data(), 20, 5, 85);
@@ -207,22 +196,30 @@ std::string plate_addresses(const std::string &btc, const std::string &eth,
 
 std::string plate_xmr_address(const std::string &addr, const std::string &header,
                               const std::string &message, const std::string &date) {
-    // 95-char monero address in 4 hyphen-joined segments (22/24/24/25), mixed-case
-    // so each line case-stacks into two rows. That's ~10 stacked rows — too much
-    // for one card's field buffer, so we split across TWO F3 cards (5 + 4 rows),
-    // each as light as a word plate. Reader concatenates the hyphenated segments.
-    const std::string l0 = to_upper(header) + addr.substr(0, 22) + "-";
-    const std::string l1 = "-" + (addr.size() > 22 ? addr.substr(22, 24) : std::string()) + "-";
-    const std::string l2 = "-" + (addr.size() > 46 ? addr.substr(46, 24) : std::string()) + "-";
-    const std::string l3 = "-" + (addr.size() > 70 ? addr.substr(70) : std::string());
+    // The 95-char monero address split into 4 hyphen-joined lines (22/24/24/25)
+    // per keyprint.go PKey_XMR_Addr_Message2..5; mixed-case -> row-stacking. One
+    // F3 card (F3 isn't a stored format slot, so it doesn't collide with F0-F2).
+    const std::string MNT = mx_message(to_upper("MINTED ON " + date));
+    const std::string MSG = mx_message(to_upper(message));
+    const std::string m2 = mx_message(to_upper(header) + addr.substr(0, 22) + "-");
+    const std::string m3 = mx_message("-" + (addr.size() > 22 ? addr.substr(22, 24) : std::string()) + "-");
+    const std::string m4 = mx_message("-" + (addr.size() > 46 ? addr.substr(46, 24) : std::string()) + "-");
+    const std::string m5 = mx_message("-" + (addr.size() > 70 ? addr.substr(70) : std::string()));
 
-    std::vector<std::string> c1;
-    if (!message.empty()) c1.push_back(to_upper(message));
-    c1.push_back(to_upper("MINTED ON " + date));
-    c1.push_back(l0);
-    c1.push_back(l1);
-
-    return f3_card(c1) + f3_card({l2, l3});
+    const std::string layout_msgs[6] = {MNT, MSG, m2, m3, m4, m5};
+    std::string layout;
+    for (int i = 0, y = 50; i < 6; ++i, y += 75) {
+        layout += mx_layout(layout_msgs[i], y, 100);
+        if (i < 5) layout += "\n";
+    }
+    const std::string text_msgs[6] = {MSG, MNT, m2, m3, m4, m5};
+    std::string text;
+    for (int i = 0; i < 6; ++i) {
+        text += text_msgs[i];
+        if (i < 5) text += "\n";
+    }
+    std::string out = "\n<]F3 SY540SX860\n" + layout + ">\n\n<" + text + ">\n";
+    return to_upper(out);
 }
 
 std::string plate_custom(const std::vector<std::string> &lines) {

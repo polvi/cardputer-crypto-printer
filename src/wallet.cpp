@@ -101,8 +101,8 @@ bool print_btceth(const std::string &label, SendFn sink, WalletPublic &out) {
     return ok;
 }
 
-// XMR (25-word seed): info, words 21-25, 11-20, 1-10, then the monero address
-// (plate_xmr_address emits TWO light F3 cards to stay under the C330 field buffer).
+// XMR (25-word seed): info(F0), words 21-25(F1), 11-20(F2), 1-10(F3), address(F3).
+// Distinct format numbers avoid redefining a stored C330 format slot (F0-F2).
 // Word order (high plates first) follows keyprint.go's send order.
 bool print_xmr(const std::string &label, SendFn sink, WalletPublic &out) {
     std::array<std::string, 25> words;
