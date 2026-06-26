@@ -184,8 +184,8 @@ static esp_err_t c330_write_raw(const char *data, size_t len) {
     esp_err_t err = g_vcp ? ESP_OK : ESP_ERR_INVALID_STATE;
     for (size_t off = 0; off < len && err == ESP_OK; off += kChunk) {
         // Wait out an XOFF (cap the wait so a stuck machine can't deadlock us).
-        for (int spins = 0; !g_cts && spins < 4000; ++spins) {
-            vTaskDelay(pdMS_TO_TICKS(5)); // ~20 s ceiling
+        for (int spins = 0; !g_cts && spins < 24000; ++spins) {
+            vTaskDelay(pdMS_TO_TICKS(5)); // ~120 s ceiling
         }
         size_t n = (len - off < kChunk) ? (len - off) : kChunk;
         err = g_vcp->tx_blocking(
@@ -195,10 +195,32 @@ static esp_err_t c330_write_raw(const char *data, size_t len) {
     return err;
 }
 
-// Sink the UI hands framed payload bytes to. Writes to the C330 over USB.
+// After a card's bytes are sent, the C330 feeds + embosses it (several seconds),
+// holding XOFF while its field buffer is busy. We must NOT stream the next card on
+// top of it, or the buffered field data piles up and the printer reports E37
+// (field-buffer overflow) on a later card. keyprint.go avoids this by waiting for
+// an operator keypress between every card; we do it automatically by waiting until
+// the printer has been continuously clear-to-send (XON) for a settle window.
+static void wait_for_card_done() {
+    vTaskDelay(pdMS_TO_TICKS(400)); // let the C330 assert XOFF if it's now busy
+    int clear = 0;
+    for (int i = 0; i < 24000; ++i) {            // ~120 s safety cap
+        if (g_cts) {
+            if (++clear >= 400) return;          // 400 * 5ms = 2 s of continuous XON
+        } else {
+            clear = 0;                           // still embossing — keep waiting
+        }
+        vTaskDelay(pdMS_TO_TICKS(5));
+    }
+}
+
+// Sink the UI hands framed payload bytes to. Writes one card to the C330, then
+// waits for it to finish before returning, so cards are paced one at a time.
 static bool device_send(const char *data, unsigned len) {
     if (!g_ready) return false;
-    return c330_write_raw(data, len) == ESP_OK;
+    if (c330_write_raw(data, len) != ESP_OK) return false;
+    wait_for_card_done();
+    return true;
 }
 
 // =============================================================================
