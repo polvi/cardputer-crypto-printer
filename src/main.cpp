@@ -61,10 +61,6 @@ static SemaphoreHandle_t g_disconnected_sem = nullptr; // signalled on unplug
 static volatile bool g_ready = false;                  // device open + configured
 static volatile bool g_cts   = true;                   // clear-to-send (Xon/Xoff)
 
-// On-screen USB diagnostic (debug aid while bringing up the printer link).
-static volatile const char *g_usb_stage = "boot";
-static volatile uint32_t     g_usb_tries = 0;
-
 // Low-level write to the C330 (locks g_vcp). Defined after the USB task.
 static esp_err_t c330_write_raw(const char *data, size_t len);
 
@@ -141,15 +137,12 @@ static void usb_host_task(void *arg) {
             .user_arg = nullptr,
         };
 
-        g_usb_stage = "searching";
-        g_usb_tries++;
         CdcAcmDevice *dev = VCP::open(&dev_config);
         if (dev == nullptr) {
-            g_usb_stage = "no device"; // no USB-serial bridge enumerated
+            // No device yet; loop and wait again.
             vTaskDelay(pdMS_TO_TICKS(200));
             continue;
         }
-        g_usb_stage = "opened";
 
         cdc_acm_line_coding_t line_coding = {
             .dwDTERate   = C330_BAUD,
@@ -159,7 +152,6 @@ static void usb_host_task(void *arg) {
         };
         if (dev->line_coding_set(&line_coding) != ESP_OK) {
             ESP_LOGE(TAG, "failed to set line coding");
-            g_usb_stage = "linecfg fail";
             delete dev;
             continue;
         }
@@ -170,13 +162,10 @@ static void usb_host_task(void *arg) {
         xSemaphoreGive(g_vcp_mutex);
 
         g_ready = true;
-        g_usb_stage = "ready";
         ESP_LOGI(TAG, "C330 ready @ %u baud", (unsigned)C330_BAUD);
 
         // Block until the device is unplugged.
         xSemaphoreTake(g_disconnected_sem, portMAX_DELAY);
-        g_ready = false;
-        g_usb_stage = "disconnected";
 
         xSemaphoreTake(g_vcp_mutex, portMAX_DELAY);
         g_vcp.reset();
@@ -278,25 +267,6 @@ void loop() {
     }
 
     if (dirty) ui_render(M5Cardputer.Display, g_ui);
-
-    // USB link diagnostic (top-left). Shows where the printer link stands:
-    //   "no device" = nothing enumerated (cable/OTG/VBUS/printer power)
-    //   "ready"     = FTDI open at 9600 (green dot should be on)
-    static uint32_t last_tries = 0xffffffff;
-    static const char *last_stage = nullptr;
-    if (dirty || g_usb_tries != last_tries || g_usb_stage != last_stage) {
-        last_tries = g_usb_tries;
-        last_stage = (const char *)g_usb_stage;
-        auto &d = M5Cardputer.Display;
-        d.fillRect(0, 0, 240, 9, TFT_BLACK);
-        d.setTextSize(1);
-        d.setTextColor(g_ready ? TFT_GREEN : TFT_ORANGE, TFT_BLACK);
-        d.setCursor(2, 1);
-        char b[48];
-        snprintf(b, sizeof(b), "USB:%s #%u", (const char *)g_usb_stage,
-                 (unsigned)g_usb_tries);
-        d.print(b);
-    }
 
     // Run a requested print after the "Printing…" frame is on screen. This blocks
     // (streaming all plates, FTDI-flow-controlled) until the wallet is sent.
