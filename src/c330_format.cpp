@@ -163,19 +163,22 @@ std::string plate_mnemonic_13_24(const std::array<std::string, 24> &words) {
     return word_plate('3', words.data(), 12, 12, 11);
 }
 
-// Define the shared 5-row word format ONCE (F1, via the 21-25 card), then the
-// other two word cards are text-only blocks that reuse F1 — so the job sends only
-// 3 format definitions total (F0 info, F1 words, F2 address), within the C330's
-// ~3-format memory. Re-sending a format per card overflows it -> E37 on a later
-// card. All three share the same 5-row Y085 layout; only the text differs.
-std::string plate_xmr_words_21_25(const std::array<std::string, 25> &words) {
-    return word_plate_single('1', words.data(), 20, 5, 85); // <]F1 ..><text>
-}
-std::string plate_xmr_words_11_20_text(const std::array<std::string, 25> &words) {
-    return word_text(words.data(), 10, 10, 12); // <text>, reuses F1
-}
-std::string plate_xmr_words_1_10_text(const std::array<std::string, 25> &words) {
-    return word_text(words.data(), 0, 10, 12); // <text>, reuses F1
+std::string plate_xmr_words(const std::array<std::string, 25> &w, int start,
+                            bool with_format) {
+    // First card defines the shared 5-row F1 layout; the rest are text-only and
+    // reuse it (3 format defs per job total -> within the C330's format memory).
+    // One word per line so even 12-char Monero words fit the plate width.
+    std::string out = with_format
+        ? "\n<]F1 SY540SX860\n" + layout_rows(5, 85) + ">\n\n<"
+        : std::string("\n<");
+    for (int i = 0; i < 5; ++i) {
+        char l[24];
+        snprintf(l, sizeof(l), "%2d %s", start + i + 1, w[start + i].c_str());
+        out += l;
+        if (i < 4) out += "\n";
+    }
+    out += ">\n";
+    return to_upper(out);
 }
 
 std::string plate_addresses(const std::string &btc, const std::string &eth,
