@@ -75,10 +75,15 @@ static constexpr uint8_t XOFF = 0x13;
 // The C330 paces us with Xon/Xoff: it sends XOFF (0x13) when its input buffer is
 // filling and XON (0x11) when it can take more. We honor that in c330_write_raw
 // so streaming several plates at once doesn't overflow it (manual error E64).
+// debug counters: how much the printer sends back, and how many XON/XOFF we see.
+static volatile uint32_t g_rx_total = 0;
+static volatile uint32_t g_xoff_total = 0;
+static volatile uint32_t g_xon_total = 0;
 static bool handle_rx(const uint8_t *data, size_t len, void *arg) {
+    g_rx_total += len;
     for (size_t i = 0; i < len; ++i) {
-        if (data[i] == XOFF) g_cts = false;
-        else if (data[i] == XON) g_cts = true;
+        if (data[i] == XOFF) { g_cts = false; g_xoff_total++; }
+        else if (data[i] == XON) { g_cts = true; g_xon_total++; }
     }
     return true;
 }
@@ -193,6 +198,21 @@ static esp_err_t c330_write_raw(const char *data, size_t len) {
         err = g_vcp->tx_blocking(
             reinterpret_cast<uint8_t *>(const_cast<char *>(data + off)), n, 5000);
         vTaskDelay(pdMS_TO_TICKS(25)); // let the chip clock this chunk to the printer
+
+        // (debug) live flow-control readout: TX sent / total, RX bytes from printer,
+        // XOFF/XON counts, current CTS. Watch this during the public-key card: if
+        // XOFF stays 0 / CTS stays 1 the printer never paced us (we're not seeing
+        // its flow control); if XOFF climbs, flow control is working.
+        auto &d = M5Cardputer.Display;
+        d.fillRect(0, 0, 240, 9, TFT_BLACK);
+        d.setTextSize(1);
+        d.setTextColor(g_cts ? TFT_GREEN : TFT_RED, TFT_BLACK);
+        d.setCursor(2, 1);
+        char b[64];
+        snprintf(b, sizeof(b), "TX%u/%u RX%u XF%u XN%u C%d", (unsigned)(off + n),
+                 (unsigned)len, (unsigned)g_rx_total, (unsigned)g_xoff_total,
+                 (unsigned)g_xon_total, (int)g_cts);
+        d.print(b);
     }
     xSemaphoreGive(g_vcp_mutex);
     return err;
