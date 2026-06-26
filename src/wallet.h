@@ -35,3 +35,7 @@ bool custom_print(const std::string &text, unsigned copies, SendFn sink);
 
 // Print one fixed "test" card (no input, no crypto) to validate the C330 link.
 bool test_print(SendFn sink);
+
+// Debug: print ONLY one XMR public-key (address) card, with a fixed test address,
+// to isolate whether that card alone triggers the C330 E37.
+bool mock_xmr_addr_print(SendFn sink);

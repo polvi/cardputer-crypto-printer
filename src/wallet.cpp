@@ -156,3 +156,11 @@ bool test_print(SendFn sink) {
     std::vector<std::string> plates = {c330::plate_custom(lines)};
     return send_plates(plates, sink);
 }
+
+bool mock_xmr_addr_print(SendFn sink) {
+    // Fixed, verified 95-char monero address (the sim test vector).
+    const std::string addr =
+        "4B3ut4pQGkxcUW41Qz3Fd3T6PnNY8JP5y7Re14xJR71CJj3W7SrZvCdDn9X981h8g1GdaRdvaj5Tv4JbTVvrmhXP8XTWijA";
+    std::vector<std::string> plates = {c330::plate_xmr_address(addr, "XMR", "", kMintDate)};
+    return send_plates(plates, sink);
+}
