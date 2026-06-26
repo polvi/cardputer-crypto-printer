@@ -70,7 +70,7 @@ static bool handle_select(UiState &s, const InputEvent &ev) {
         case '5': // Debug: one mock XMR public-key card in isolation.
             s.wallet = WalletType::MOCKXMR;
             s.screen = Screen::Test;
-            s.status = "G0 = print XMR pubkey card  ESC=back";
+            s.status = "G0 = print mock XMR wallet  ESC=back";
             return true;
         // Solo BTC/ETH are hidden until their crypto is implemented.
         default:  return false;
@@ -364,7 +364,7 @@ static void render_select(lgfx::LGFX_Device &d, const UiState &) {
     d.print("Crypto Wallet");
 
     static const char *opts[5] = {"1 BTC+ETH", "2 XMR", "3 Custom", "4 Test",
-                                  "5 XMRkey (dbg)"};
+                                  "5 XMR mock (dbg)"};
     d.setTextSize(2);
     d.setTextColor(TFT_WHITE, TFT_BLACK);
     for (int i = 0; i < 5; ++i) {

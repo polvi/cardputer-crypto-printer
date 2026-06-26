@@ -118,6 +118,22 @@ std::string word_plate_single(char fmt, const std::string *w, int start, int cou
     return to_upper(out);
 }
 
+// Just the <text> block (no format header) for a two-words-per-line card. Reuses
+// whichever format was last defined on the printer. `count` words from `start`.
+std::string word_text(const std::string *w, int start, int count, int pad) {
+    std::string out = "\n<";
+    for (int i = 0; i < count; i += 2) {
+        char line[48];
+        snprintf(line, sizeof(line), "%2d %-*s%2d %s",
+                 start + i + 1, pad, w[start + i].c_str(),
+                 start + i + 2, w[start + i + 1].c_str());
+        out += line;
+        if (i < count - 2) out += "\n";
+    }
+    out += ">\n";
+    return to_upper(out);
+}
+
 } // namespace
 
 std::vector<std::string> wallet_info_lines(WalletKind k) {
@@ -135,7 +151,7 @@ std::string plate_info(WalletKind k) {
         text += lines[i];
         if (i + 1 < lines.size()) text += "\n";
     }
-    std::string out = "\n<]F3 SY540SX860\n" + layout_rows((int)lines.size()) +
+    std::string out = "\n<]F0 SY540SX860\n" + layout_rows((int)lines.size()) +
                       ">\n\n<" + text + ">\n";
     return to_upper(out);
 }
@@ -147,20 +163,19 @@ std::string plate_mnemonic_13_24(const std::array<std::string, 24> &words) {
     return word_plate('3', words.data(), 12, 12, 11);
 }
 
-// EVERY wallet card uses the transient format F3 (never F0-F2). The C330 only has
-// 3 STORED format slots (F0-F2); each card that defines one of those leaves it in
-// the printer's format/field memory, and by the last card (the public-key card)
-// that memory is full -> E37 field-buffer overflow. F3 is not a stored slot, so
-// redefining it per card leaves nothing behind. (The public-key card prints fine
-// in isolation precisely because nothing was stored before it.)
-std::string plate_xmr_words_1_10(const std::array<std::string, 25> &words) {
-    return word_plate('3', words.data(), 0, 10, 12, 85);
-}
-std::string plate_xmr_words_11_20(const std::array<std::string, 25> &words) {
-    return word_plate('3', words.data(), 10, 10, 12, 85);
-}
+// Define the shared 5-row word format ONCE (F1, via the 21-25 card), then the
+// other two word cards are text-only blocks that reuse F1 — so the job sends only
+// 3 format definitions total (F0 info, F1 words, F2 address), within the C330's
+// ~3-format memory. Re-sending a format per card overflows it -> E37 on a later
+// card. All three share the same 5-row Y085 layout; only the text differs.
 std::string plate_xmr_words_21_25(const std::array<std::string, 25> &words) {
-    return word_plate_single('3', words.data(), 20, 5, 85);
+    return word_plate_single('1', words.data(), 20, 5, 85); // <]F1 ..><text>
+}
+std::string plate_xmr_words_11_20_text(const std::array<std::string, 25> &words) {
+    return word_text(words.data(), 10, 10, 12); // <text>, reuses F1
+}
+std::string plate_xmr_words_1_10_text(const std::array<std::string, 25> &words) {
+    return word_text(words.data(), 0, 10, 12); // <text>, reuses F1
 }
 
 std::string plate_addresses(const std::string &btc, const std::string &eth,
@@ -190,7 +205,7 @@ std::string plate_addresses(const std::string &btc, const std::string &eth,
         if (i < 5) text += "\n";
     }
 
-    std::string out = "\n<]F3 SY540SX860\n" + layout + ">\n\n<" + text + ">\n";
+    std::string out = "\n<]F2 SY540SX860\n" + layout + ">\n\n<" + text + ">\n";
     return to_upper(out); // drum is uppercase; case is encoded by row position
 }
 
@@ -218,7 +233,7 @@ std::string plate_xmr_address(const std::string &addr, const std::string &header
         text += text_msgs[i];
         if (i < 5) text += "\n";
     }
-    std::string out = "\n<]F3 SY540SX860\n" + layout + ">\n\n<" + text + ">\n";
+    std::string out = "\n<]F2 SY540SX860\n" + layout + ">\n\n<" + text + ">\n";
     return to_upper(out);
 }
 

@@ -69,12 +69,15 @@ std::string plate_addresses(const std::string &btc, const std::string &eth,
                             const std::string &message, const std::string &date);
 
 // --- XMR (legacy 25-word seed) ---
-// 5 rows/plate at Y085: words 1-10 and 11-20 are two-per-row, 21-25 one-per-row.
-std::string plate_xmr_words_1_10(const std::array<std::string, 25> &words);
-std::string plate_xmr_words_11_20(const std::array<std::string, 25> &words);
-std::string plate_xmr_words_21_25(const std::array<std::string, 25> &words);
+// The 3 word cards share one 5-row Y085 layout, so we DEFINE it once (F1, via the
+// 21-25 card) and send the other two as text-only blocks that reuse it. The C330
+// only holds ~3 stored formats; redefining a format per card overflows its memory
+// and trips E37 on a later card, so define-once / text-many is required.
+std::string plate_xmr_words_21_25(const std::array<std::string, 25> &words);    // <]F1 ..><text>
+std::string plate_xmr_words_11_20_text(const std::array<std::string, 25> &words); // <text> (reuses F1)
+std::string plate_xmr_words_1_10_text(const std::array<std::string, 25> &words);  // <text> (reuses F1)
 
-// F3 public-key page — "MINTED ON <date>" + optional message + the 95-char
+// F2 public-key page — "MINTED ON <date>" + optional message + the 95-char
 // monero address split across four stacked, hyphen-joined lines.
 std::string plate_xmr_address(const std::string &addr, const std::string &header,
                               const std::string &message, const std::string &date);
