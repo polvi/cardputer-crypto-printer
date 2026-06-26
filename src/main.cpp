@@ -157,11 +157,20 @@ static void usb_host_task(void *arg) {
         }
         dev->set_control_line_state(true, true); // DTR, RTS
 
+        // Enable the FTDI chip's HARDWARE Xon/Xoff so the chip itself stops feeding
+        // the printer the instant it sees XOFF (0x13) and resumes on XON (0x11) —
+        // it won't drain its TX buffer past an XOFF. This is what makes CUPS's
+        // serial flow=soft work; doing it host-side can't recall bytes already in
+        // the chip. FTDI SET_FLOW_CTRL: bRequest 0x02, wValue = Xon | Xoff<<8,
+        // wIndex = SIO_XON_XOFF_HS(0x0400) | port. With this on, tx_blocking() just
+        // back-pressures us while the printer embosses.
+        if (dev->send_custom_request(0x40, 0x02, (0x13 << 8) | 0x11, 0x0400, 0, nullptr) != ESP_OK)
+            ESP_LOGW(TAG, "FTDI Xon/Xoff enable failed");
+
         xSemaphoreTake(g_vcp_mutex, portMAX_DELAY);
         g_vcp.reset(dev);
         xSemaphoreGive(g_vcp_mutex);
 
-        // No format push here — each plate carries its own layout block.
         g_ready = true;
         ESP_LOGI(TAG, "C330 ready @ %u baud", (unsigned)C330_BAUD);
 
@@ -174,52 +183,31 @@ static void usb_host_task(void *arg) {
     }
 }
 
-// Low-level write to the C330. Locks g_vcp; does not depend on g_ready so it can
-// push the format during connect setup. Streams in small chunks and pauses while
-// the C330 has asserted XOFF, so multi-plate sends never overflow it. Returns
+// Low-level write to the C330. The FTDI chip does hardware Xon/Xoff (enabled at
+// connect), so it back-pressures us while the printer embosses: tx_blocking() just
+// blocks until the chip can accept more. A long per-chunk timeout covers a card
+// that the printer parses slowly (its field buffer fills, it XOFFs, embosses, then
+// XONs). We keep the software XOFF check too as a belt-and-suspenders. Returns
 // ESP_OK on success.
 static esp_err_t c330_write_raw(const char *data, size_t len) {
     static constexpr size_t kChunk = 64;
     xSemaphoreTake(g_vcp_mutex, portMAX_DELAY);
     esp_err_t err = g_vcp ? ESP_OK : ESP_ERR_INVALID_STATE;
     for (size_t off = 0; off < len && err == ESP_OK; off += kChunk) {
-        // Wait out an XOFF; bail if the printer is unplugged or it stalls too long.
-        for (int spins = 0; !g_cts && g_ready && spins < 12000; ++spins) {
-            vTaskDelay(pdMS_TO_TICKS(5)); // ~60 s ceiling
-        }
+        for (int spins = 0; !g_cts && g_ready && spins < 12000; ++spins)
+            vTaskDelay(pdMS_TO_TICKS(5)); // wait out a software XOFF; bail on unplug
         size_t n = (len - off < kChunk) ? (len - off) : kChunk;
         err = g_vcp->tx_blocking(
-            reinterpret_cast<uint8_t *>(const_cast<char *>(data + off)), n);
+            reinterpret_cast<uint8_t *>(const_cast<char *>(data + off)), n, 90000);
     }
     xSemaphoreGive(g_vcp_mutex);
     return err;
 }
 
-// The C330 buffers cards and embosses them in the background; it does NOT assert
-// XOFF per card (XOFF only guards its small serial RX buffer, not the parsed
-// field buffer). So we can't detect "card done" from flow control — we pace by
-// TIME: before each card after the first, wait long enough for the previous card
-// to finish embossing so its field data clears before the next streams in.
-// Otherwise the field buffer fills and the printer reports E37 on a later card.
-// keyprint.go gets this pacing from the operator pressing Enter between cards.
-// kInterCardMs must be >= the time the C330 takes to emboss one card (measured at
-// ~55 s on this unit), with a little margin. The card buffer holds a few cards, so
-// a small overrun is absorbed; the physical emboss time dominates regardless.
-static constexpr int kInterCardMs = 60000;
-static bool g_job_started = false; // reset false at the start of each print job
-
-static void pace_between_cards() {
-    for (int i = 0; i < kInterCardMs / 5 && g_ready; ++i)
-        vTaskDelay(pdMS_TO_TICKS(5)); // bail immediately if the printer is unplugged
-}
-
-// Sink the UI hands framed payload bytes to. Paces one card at a time: waits for
-// the previous card to emboss before streaming the next (no wait after the last,
-// so the Result screen appears promptly).
+// Sink the UI hands framed payload bytes to. Writes one card; the FTDI flow
+// control paces it against the printer's emboss speed.
 static bool device_send(const char *data, unsigned len) {
     if (!g_ready) return false;
-    if (g_job_started) pace_between_cards();
-    g_job_started = true;
     return c330_write_raw(data, len) == ESP_OK;
 }
 
@@ -287,9 +275,8 @@ void loop() {
     if (dirty) ui_render(M5Cardputer.Display, g_ui);
 
     // Run a requested print after the "Printing…" frame is on screen. This blocks
-    // (streaming all plates, pacing one card at a time) until the wallet is sent.
+    // (streaming all plates, FTDI-flow-controlled) until the wallet is sent.
     if (ui_pending_print(g_ui)) {
-        g_job_started = false; // first card of this job streams immediately
         ui_run_print(g_ui);
         ui_render(M5Cardputer.Display, g_ui);
     }
