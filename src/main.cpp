@@ -232,29 +232,29 @@ void loop() {
     if (M5Cardputer.Keyboard.isChange() && M5Cardputer.Keyboard.isPressed()) {
         Keyboard_Class::KeysState st = M5Cardputer.Keyboard.keysState();
 
+        // Printable characters. Two keys are NOT plain text: the wide space bar
+        // spans several key-matrix cells (so it lands in st.word repeatedly -- we
+        // handle it once via st.space below), and the esc-labelled key types '`'
+        // when pressed without Fn (we use it as Back/Esc).
         for (auto c : st.word) {
-            // The Cardputer has no dedicated arrow keys: Fn + ; , . / is the
-            // arrow cluster. While Fn is held, map those to arrows instead of
-            // typing them.
-            if (st.fn) {
-                InputKey k = InputKey::None;
-                switch (c) {
-                    case ';': k = InputKey::Up;    break;
-                    case '.': k = InputKey::Down;  break;
-                    case ',': k = InputKey::Left;  break;
-                    case '/': k = InputKey::Right; break;
-                    default:  break;
-                }
-                if (k != InputKey::None) {
-                    if (ui_handle_input(g_ui, {k, 0})) dirty = true;
-                }
-                continue; // don't type characters while Fn is held
-            }
+            if (c == ' ') continue;
+            if (c == '`') { if (ui_handle_input(g_ui, {InputKey::Esc, 0})) dirty = true; continue; }
             if (ui_handle_input(g_ui, {InputKey::Char, c})) dirty = true;
         }
+
+        // Fn layer: while Fn is held the library leaves st.word empty and reports
+        // the Fn+;,./ arrow cluster and Fn+esc as state flags instead.
+        if (st.up    && ui_handle_input(g_ui, {InputKey::Up,    0})) dirty = true;
+        if (st.down  && ui_handle_input(g_ui, {InputKey::Down,  0})) dirty = true;
+        if (st.left  && ui_handle_input(g_ui, {InputKey::Left,  0})) dirty = true;
+        if (st.right && ui_handle_input(g_ui, {InputKey::Right, 0})) dirty = true;
+        if (st.esc   && ui_handle_input(g_ui, {InputKey::Esc,   0})) dirty = true;
+
         if (st.space && ui_handle_input(g_ui, {InputKey::Char, ' '})) dirty = true;
-        if (st.del   && ui_handle_input(g_ui, {InputKey::Backspace, 0})) dirty = true;
-        if (st.enter && ui_handle_input(g_ui, {InputKey::Enter, 0}))     dirty = true;
+        // Backspace: the bare key sets .backspace; Fn+backspace sets .del.
+        if ((st.backspace || st.del) &&
+            ui_handle_input(g_ui, {InputKey::Backspace, 0})) dirty = true;
+        if (st.enter && ui_handle_input(g_ui, {InputKey::Enter, 0})) dirty = true;
     }
 
     // Print: a single press of the physical top button (G0). M5Cardputer.update()

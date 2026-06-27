@@ -149,13 +149,3 @@ bool custom_print(const std::string &text, unsigned copies, SendFn sink) {
     std::vector<std::string> plates(copies, plate);
     return send_plates(plates, sink);
 }
-
-bool test_print(SendFn sink) {
-    std::vector<std::string> lines = {
-        "C330 TEST CARD",
-        "CARDPUTER LINK OK",
-        "MINTED " + kMintDate,
-    };
-    std::vector<std::string> plates = {c330::plate_custom(lines)};
-    return send_plates(plates, sink);
-}

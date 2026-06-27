@@ -19,7 +19,6 @@ const char *wallet_name(WalletType w) {
         case WalletType::BTC_ETH: return "BTC+ETH";
         case WalletType::XMR:     return "XMR";
         case WalletType::CUSTOM:  return "Custom";
-        case WalletType::TEST:    return "Test";
     }
     return "?";
 }
@@ -29,7 +28,7 @@ const char *wallet_name(WalletType w) {
 // ============================================================================
 void ui_init(UiState &s, SendFn send, const char *status) {
     s.send      = send;
-    s.status    = status ? status : "Press 1-4 to choose";
+    s.status    = status ? status : "Press 1-3 to choose";
     s.buffer.clear();
     s.cursor    = 0;
     s.connected = false;
@@ -60,11 +59,6 @@ static bool handle_select(UiState &s, const InputEvent &ev) {
             s.copies = 1;
             s.copies_typing = false;
             s.status = "ENTER=new line  G0=copies";
-            return true;
-        case '4': // Test: one fixed card to validate the C330 link.
-            s.wallet = WalletType::TEST;
-            s.screen = Screen::Test;
-            s.status = "G0/Cmd+Enter = print test  ESC=back";
             return true;
         // Solo BTC/ETH are hidden until their crypto is implemented.
         default:  return false;
@@ -120,7 +114,7 @@ static bool handle_label(UiState &s, const InputEvent &ev) {
             s.screen = Screen::Select;
             s.buffer.clear();
             s.cursor = 0;
-            s.status = "Press 1-4 to choose";
+            s.status = "Press 1-3 to choose";
             return true;
 
         default:
@@ -206,7 +200,7 @@ static bool handle_custom(UiState &s, const InputEvent &ev) {
             s.buffer.clear();
             s.cursor = 0;
             s.screen = Screen::Select;
-            s.status = "Press 1-4 to choose";
+            s.status = "Press 1-3 to choose";
             return true;
         default:
             return false;
@@ -271,22 +265,6 @@ static bool handle_confirm(UiState &s, const InputEvent &ev) {
     return false;
 }
 
-// Test card: no input — the print button embosses one fixed card.
-static bool handle_test(UiState &s, const InputEvent &ev) {
-    if (ev.key == InputKey::Print) {
-        if (!s.connected) { s.status = "Printer not connected"; return true; }
-        s.screen = Screen::Printing;
-        s.status = "Printing... do not remove plate";
-        return true;
-    }
-    if (ev.key == InputKey::Esc) {
-        s.screen = Screen::Select;
-        s.status = "Press 1-4 to choose";
-        return true;
-    }
-    return false;
-}
-
 static bool handle_result(UiState &s, const InputEvent &ev) {
     if (ev.key == InputKey::None) return false;
     // Any key: wipe the displayed keys and start over.
@@ -295,7 +273,7 @@ static bool handle_result(UiState &s, const InputEvent &ev) {
     s.buffer.clear();
     s.cursor = 0;
     s.screen = Screen::Select;
-    s.status = "Press 1-4 to choose";
+    s.status = "Press 1-3 to choose";
     return true;
 }
 
@@ -306,7 +284,6 @@ bool ui_handle_input(UiState &s, const InputEvent &ev) {
         case Screen::Confirm:  return handle_confirm(s, ev);
         case Screen::Custom:   return handle_custom(s, ev);
         case Screen::Copies:   return handle_copies(s, ev);
-        case Screen::Test:     return handle_test(s, ev);
         case Screen::Printing: return false; // ignore input while streaming
         case Screen::Result:   return handle_result(s, ev);
     }
@@ -321,15 +298,13 @@ bool ui_pending_print(const UiState &s) {
 // material lives only inside wallet_print() and is zeroized there; we keep only
 // the public addresses.
 bool ui_run_print(UiState &s) {
-    if (s.wallet == WalletType::CUSTOM || s.wallet == WalletType::TEST) {
-        bool ok = (s.wallet == WalletType::TEST) ? test_print(s.send)
-                                                 : custom_print(s.buffer, s.copies, s.send);
-        if (ok) {
+    if (s.wallet == WalletType::CUSTOM) {
+        if (custom_print(s.buffer, s.copies, s.send)) {
             s.pubkeys.clear();
             s.screen = Screen::Result;
             s.status = "Card printed - any key";
         } else {
-            s.screen = (s.wallet == WalletType::CUSTOM) ? Screen::Copies : Screen::Test;
+            s.screen = Screen::Copies;
             s.status = "Print FAILED";
         }
         return true;
@@ -355,10 +330,10 @@ static void render_select(lgfx::LGFX_Device &d, const UiState &) {
     d.setCursor(4, 4);
     d.print("Crypto Wallet");
 
-    static const char *opts[4] = {"1 BTC+ETH", "2 XMR", "3 Custom", "4 Test"};
+    static const char *opts[3] = {"1 BTC+ETH", "2 XMR", "3 Custom"};
     d.setTextSize(2);
     d.setTextColor(TFT_WHITE, TFT_BLACK);
-    for (int i = 0; i < 4; ++i) {
+    for (int i = 0; i < 3; ++i) {
         d.setCursor(8, 24 + i * 20);
         d.print(opts[i]);
     }
@@ -450,25 +425,6 @@ static void render_custom(lgfx::LGFX_Device &d, const UiState &s) {
         if (s.buffer[i] == '\n') ++cline;
     int ccol = (int)(s.cursor - line_start(s.buffer, s.cursor));
     d.fillRect(x0 + ccol * cw, y0 + cline * lh, 2, chh, TFT_YELLOW);
-}
-
-static void render_test(lgfx::LGFX_Device &d, const UiState &) {
-    d.setTextColor(TFT_CYAN, TFT_BLACK);
-    d.setTextSize(2);
-    d.setCursor(4, 4);
-    d.print("Test Card");
-
-    d.setTextSize(1);
-    d.setTextColor(TFT_DARKGREY, TFT_BLACK);
-    d.setCursor(4, 28);
-    d.print("Embosses one fixed card:");
-
-    d.setTextColor(TFT_WHITE, TFT_BLACK);
-    const char *lines[3] = {"C330 TEST CARD", "CARDPUTER LINK OK", "MINTED <build date>"};
-    for (int i = 0; i < 3; ++i) {
-        d.setCursor(12, 44 + i * 12);
-        d.print(lines[i]);
-    }
 }
 
 static void render_copies(lgfx::LGFX_Device &d, const UiState &s) {
@@ -592,7 +548,6 @@ void ui_render(lgfx::LGFX_Device &d, const UiState &s) {
         case Screen::Confirm:  render_confirm(d, s);  break;
         case Screen::Custom:   render_custom(d, s);   break;
         case Screen::Copies:   render_copies(d, s);   break;
-        case Screen::Test:     render_test(d, s);     break;
         case Screen::Printing: render_printing(d, s); break;
         case Screen::Result:   render_result(d, s);   break;
     }

@@ -43,15 +43,14 @@ using SendFn = bool (*)(const char *data, unsigned len);
 
 // The printer flow. Wallet path: Select -> Label -> Confirm -> Printing -> Result.
 // Custom path:  Select -> Custom -> Copies -> Printing -> Result.
-// Test path:    Select -> Test -> Printing -> Result. (forward via select/Enter/
-// Print; back via Esc). Printing is transient while plates stream.
-enum class Screen { Select, Label, Confirm, Custom, Copies, Test, Printing, Result };
+// Printing is transient while plates stream.
+enum class Screen { Select, Label, Confirm, Custom, Copies, Printing, Result };
 
-// CUSTOM (free-form text) and TEST (fixed test card) aren't wallets — they route
-// to custom_print / test_print, never to wallet_print.
-enum class WalletType { BTC, ETH, BTC_ETH, XMR, CUSTOM, TEST };
+// CUSTOM (free-form text) isn't a wallet — it routes to custom_print, never to
+// wallet_print.
+enum class WalletType { BTC, ETH, BTC_ETH, XMR, CUSTOM };
 
-// Human-readable name ("BTC", "ETH", "BTC+ETH", "XMR", "Custom", "Test").
+// Human-readable name ("BTC", "ETH", "BTC+ETH", "XMR", "Custom").
 const char *wallet_name(WalletType w);
 
 // Max characters for the optional label.

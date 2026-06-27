@@ -32,6 +32,3 @@ bool wallet_print(WalletType type, const std::string &label,
 // CUSTOM_MAX_LINES), embossed `copies` times (the hopper auto-feeds each). No
 // crypto, no keys, no secrets.
 bool custom_print(const std::string &text, unsigned copies, SendFn sink);
-
-// Print one fixed "test" card (no input, no crypto) to validate the C330 link.
-bool test_print(SendFn sink);
