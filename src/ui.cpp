@@ -4,6 +4,12 @@
 
 #include <cstdio>
 
+// The "print" trigger's label in on-screen prompts, set per platform via
+// build_flags: "G0" (the physical button) on the device, "Cmd+Enter" in the sim.
+#ifndef UI_PRINT_KEY
+#define UI_PRINT_KEY "G0"
+#endif
+
 // Map the UI wallet type to the C330 format module's kind.
 static c330::WalletKind kind_of(WalletType w) {
     return w == WalletType::XMR ? c330::WalletKind::Xmr : c330::WalletKind::BtcEth;
@@ -58,7 +64,7 @@ static bool handle_select(UiState &s, const InputEvent &ev) {
             s.screen = Screen::Custom;
             s.copies = 1;
             s.copies_typing = false;
-            s.status = "ENTER=new line  G0=copies";
+            s.status = "ENTER=new line  " UI_PRINT_KEY "=copies";
             return true;
         // Solo BTC/ETH are hidden until their crypto is implemented.
         default:  return false;
@@ -107,7 +113,7 @@ static bool handle_label(UiState &s, const InputEvent &ev) {
 
         case InputKey::Enter: // label is optional; may be empty
             s.screen = Screen::Confirm;
-            s.status = "G0/Cmd+Enter = print   ESC=back";
+            s.status = UI_PRINT_KEY " = print   ESC=back";
             return true;
 
         case InputKey::Esc:
@@ -194,7 +200,7 @@ static bool handle_custom(UiState &s, const InputEvent &ev) {
             s.copies = 1;
             s.copies_typing = false;
             s.screen = Screen::Copies;
-            s.status = "Copies, then G0 to print  ESC=back";
+            s.status = "Copies, then " UI_PRINT_KEY " to print  ESC=back";
             return true;
         case InputKey::Esc:
             s.buffer.clear();
@@ -236,7 +242,7 @@ static bool handle_copies(UiState &s, const InputEvent &ev) {
             return true;
         case InputKey::Esc: // back to the editor (text preserved)
             s.screen = Screen::Custom;
-            s.status = "ENTER=new line  G0=copies";
+            s.status = "ENTER=new line  " UI_PRINT_KEY "=copies";
             return true;
         default:
             return false;
