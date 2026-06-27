@@ -101,10 +101,8 @@ bool print_btceth(const std::string &label, SendFn sink, WalletPublic &out) {
     return ok;
 }
 
-// XMR (25-word seed): info, words 21-25, 11-20, 1-10, address. Every card uses the
-// transient format F3 (not a stored slot), so nothing accumulates in the printer's
-// format/field memory across the job (the cause of E37 on the public-key card).
-// Word order (high plates first) follows keyprint.go's send order.
+// XMR (25-word seed): info, words 21-25, 11-20, 1-10, address -- byte-for-byte the
+// stream docs/keyprint.go produces (formats F0/F1/F1/F1/F3, descending word cards).
 bool print_xmr(const std::string &label, SendFn sink, WalletPublic &out) {
     std::array<std::string, 25> words;
     std::string addr;
@@ -159,25 +157,5 @@ bool test_print(SendFn sink) {
         "MINTED " + kMintDate,
     };
     std::vector<std::string> plates = {c330::plate_custom(lines)};
-    return send_plates(plates, sink);
-}
-
-bool mock_xmr_addr_print(SendFn sink) {
-    // Full mock XMR wallet (fixed data) so the multi-card path can be tested
-    // repeatably without generating a real seed. Same cards/formats as print_xmr.
-    std::array<std::string, 25> words = {
-        "SLOWER", "AISLE", "GORILLA", "ANTICS", "LEMON", "OKAY", "POTATO", "LULLABY",
-        "ABBEY", "FAMILY", "GAINED", "BLUNTLY", "VETERAN", "ENIGMA", "PIERCE", "FILMS",
-        "ADEPT", "VOTED", "VEXED", "ENJOY", "PIGMENT", "UPCOMING", "DELAYED", "EMULATE",
-        "ABBEY"};
-    const std::string addr =
-        "4B3ut4pQGkxcUW41Qz3Fd3T6PnNY8JP5y7Re14xJR71CJj3W7SrZvCdDn9X981h8g1GdaRdvaj5Tv4JbTVvrmhXP8XTWijA";
-    std::vector<std::string> plates = {
-        c330::plate_info(c330::WalletKind::Xmr),
-        c330::plate_xmr_words_21_25(words),
-        c330::plate_xmr_words_11_20(words),
-        c330::plate_xmr_words_1_10(words),
-        c330::plate_xmr_address(addr, "XMR", "CAKE5", kMintDate),
-    };
     return send_plates(plates, sink);
 }

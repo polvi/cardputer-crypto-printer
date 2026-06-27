@@ -59,33 +59,19 @@ static std::unique_ptr<CdcAcmDevice> g_vcp;
 static SemaphoreHandle_t g_vcp_mutex = nullptr;        // guards g_vcp
 static SemaphoreHandle_t g_disconnected_sem = nullptr; // signalled on unplug
 static volatile bool g_ready = false;                  // device open + configured
-static volatile bool g_cts   = true;                   // clear-to-send (Xon/Xoff)
 
 // Low-level write to the C330 (locks g_vcp). Defined after the USB task.
 static esp_err_t c330_write_raw(const char *data, size_t len);
-
-// C330 software flow control.
-static constexpr uint8_t XON  = 0x11;
-static constexpr uint8_t XOFF = 0x13;
 
 // =============================================================================
 // USB host plumbing
 // =============================================================================
 
-// The C330 paces us with Xon/Xoff: it sends XOFF (0x13) when its input buffer is
-// filling and XON (0x11) when it can take more. We honor that in c330_write_raw
-// so streaming several plates at once doesn't overflow it (manual error E64).
-// debug counters: how much the printer sends back, and how many XON/XOFF we see.
-static volatile uint32_t g_rx_total = 0;
-static volatile uint32_t g_xoff_total = 0;
-static volatile uint32_t g_xon_total = 0;
-static volatile uint32_t g_card_idx = 0; // which card in the current job (1-based)
+// Flow control is handled in hardware by the FTDI chip: we enable its Xon/Xoff at
+// connect, so it pauses its own TX the instant the C330 asserts XOFF (no E64/E37
+// overrun) and consumes the flow bytes itself -- so there's nothing to do with
+// received data here.
 static bool handle_rx(const uint8_t *data, size_t len, void *arg) {
-    g_rx_total += len;
-    for (size_t i = 0; i < len; ++i) {
-        if (data[i] == XOFF) { g_cts = false; g_xoff_total++; }
-        else if (data[i] == XON) { g_cts = true; g_xon_total++; }
-    }
     return true;
 }
 
@@ -163,14 +149,14 @@ static void usb_host_task(void *arg) {
         }
         dev->set_control_line_state(true, true); // DTR, RTS
 
-        // Enable the FTDI chip's HARDWARE Xon/Xoff flow control, exactly as the
-        // Linux ftdi_sio driver does for CUPS's flow=soft (which is why `lp`
-        // streams every card with no overrun). FTDI "Set Flow Control" is the REAL
-        // command 0x02 (the esp FTDI component mislabels 0x02 as "SET_MHS"); value
-        // = XOFF<<8 | XON = 0x1311, index = XON_XOFF_HS(0x0400) | channel 0. Now the
-        // chip halts its own TX the instant the C330 asserts XOFF -- byte-accurate,
-        // no software overshoot of the printer's field buffer (the E37 cause).
-        //   bmRequestType 0x40 = vendor | host-to-device | device.
+        // Enable the FTDI chip's HARDWARE Xon/Xoff flow control, exactly as the Linux
+        // ftdi_sio driver does for CUPS's flow=soft. The chip then halts its own TX
+        // the instant the C330 asserts XOFF -- byte-accurate, with no software
+        // overshoot of the printer's ~1.1KB receive buffer (manual error E64) when a
+        // multi-card wallet is streamed in one shot. FTDI "Set Flow Control" is the
+        // REAL command 0x02 (the esp FTDI component mislabels 0x02 as "SET_MHS");
+        // wValue = XOFF<<8 | XON = 0x1311, wIndex = XON_XOFF_HS(0x0400) | channel 0,
+        // bmRequestType 0x40 = vendor | host-to-device | device.
         esp_err_t fc = dev->send_custom_request(0x40, 0x02, 0x1311, 0x0400, 0, nullptr);
         ESP_LOGI(TAG, "FTDI hw Xon/Xoff: %s", esp_err_to_name(fc));
 
@@ -190,35 +176,18 @@ static void usb_host_task(void *arg) {
     }
 }
 
-// Low-level write to the C330. CRITICAL: we must NOT retry a timed-out chunk.
-// cdc_acm tx_blocking, on timeout, calls cdc_acm_reset_transfer_endpoint() which
-// *completes the in-flight transfer* (the bytes are delivered), so resending the
-// same chunk DUPLICATES those bytes and corrupts the stream -> the printer parses a
-// malformed field and throws E37. (Proven: the identical byte stream prints all
-// cards from a PC; only our retrying transmitter failed.) So we issue ONE
-// tx_blocking per chunk with a long timeout and let it block through any printer
-// XOFF (the FTDI chip's hardware Xon/Xoff, enabled at connect, pauses the chip's
-// TX while the printer embosses; tx_blocking simply waits on the full FIFO).
-// Status is drawn ONCE per card, not per chunk -- per-chunk drawing slowed the
-// stream enough that the printer began embossing mid-send. Returns ESP_OK on success.
+// Low-level write to the C330, in small chunks. The FTDI chip's hardware Xon/Xoff
+// (enabled at connect) pauses the chip's TX while the printer embosses, so tx_blocking
+// simply blocks on the full FIFO -- a long timeout rides that out. CRITICAL: do NOT
+// retry a timed-out chunk: cdc_acm's timeout resets the endpoint, which *completes*
+// the in-flight transfer (bytes delivered), so resending would duplicate bytes and
+// corrupt the stream (the C330 then parses a malformed field -> E37). Returns ESP_OK.
 static esp_err_t c330_write_raw(const char *data, size_t len) {
     static constexpr size_t kChunk = 16;
     xSemaphoreTake(g_vcp_mutex, portMAX_DELAY);
     esp_err_t err = g_vcp ? ESP_OK : ESP_ERR_INVALID_STATE;
-    if (err == ESP_OK) {
-        auto &d = M5Cardputer.Display;
-        d.fillRect(0, 0, 240, 9, TFT_BLACK);
-        d.setTextSize(1);
-        d.setTextColor(TFT_GREEN, TFT_BLACK);
-        d.setCursor(2, 1);
-        char b[48];
-        snprintf(b, sizeof(b), "card #%u  %u bytes", (unsigned)g_card_idx, (unsigned)len);
-        d.print(b);
-    }
     for (size_t off = 0; off < len && err == ESP_OK; off += kChunk) {
         size_t n = (len - off < kChunk) ? (len - off) : kChunk;
-        // 300s: ride out a full card's emboss XOFF without ever timing out (a
-        // timeout would reset the endpoint and duplicate bytes -- see above).
         err = g_vcp->tx_blocking(
             reinterpret_cast<uint8_t *>(const_cast<char *>(data + off)), n, 300000);
     }
@@ -230,7 +199,6 @@ static esp_err_t c330_write_raw(const char *data, size_t len) {
 // control paces it against the printer's emboss speed.
 static bool device_send(const char *data, unsigned len) {
     if (!g_ready) return false;
-    ++g_card_idx; // one device_send per plate/card
     return c330_write_raw(data, len) == ESP_OK;
 }
 
@@ -300,7 +268,6 @@ void loop() {
     // Run a requested print after the "Printing…" frame is on screen. This blocks
     // (streaming all plates, FTDI-flow-controlled) until the wallet is sent.
     if (ui_pending_print(g_ui)) {
-        g_card_idx = 0; // restart the per-job card counter (debug overlay)
         ui_run_print(g_ui);
         ui_render(M5Cardputer.Display, g_ui);
     }

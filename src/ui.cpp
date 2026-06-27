@@ -20,7 +20,6 @@ const char *wallet_name(WalletType w) {
         case WalletType::XMR:     return "XMR";
         case WalletType::CUSTOM:  return "Custom";
         case WalletType::TEST:    return "Test";
-        case WalletType::MOCKXMR: return "XMRkey";
     }
     return "?";
 }
@@ -30,7 +29,7 @@ const char *wallet_name(WalletType w) {
 // ============================================================================
 void ui_init(UiState &s, SendFn send, const char *status) {
     s.send      = send;
-    s.status    = status ? status : "Press 1-5 to choose";
+    s.status    = status ? status : "Press 1-4 to choose";
     s.buffer.clear();
     s.cursor    = 0;
     s.connected = false;
@@ -66,11 +65,6 @@ static bool handle_select(UiState &s, const InputEvent &ev) {
             s.wallet = WalletType::TEST;
             s.screen = Screen::Test;
             s.status = "G0/Cmd+Enter = print test  ESC=back";
-            return true;
-        case '5': // Debug: one mock XMR public-key card in isolation.
-            s.wallet = WalletType::MOCKXMR;
-            s.screen = Screen::Test;
-            s.status = "G0 = print mock XMR wallet  ESC=back";
             return true;
         // Solo BTC/ETH are hidden until their crypto is implemented.
         default:  return false;
@@ -126,7 +120,7 @@ static bool handle_label(UiState &s, const InputEvent &ev) {
             s.screen = Screen::Select;
             s.buffer.clear();
             s.cursor = 0;
-            s.status = "Press 1-5 to choose";
+            s.status = "Press 1-4 to choose";
             return true;
 
         default:
@@ -212,7 +206,7 @@ static bool handle_custom(UiState &s, const InputEvent &ev) {
             s.buffer.clear();
             s.cursor = 0;
             s.screen = Screen::Select;
-            s.status = "Press 1-5 to choose";
+            s.status = "Press 1-4 to choose";
             return true;
         default:
             return false;
@@ -287,7 +281,7 @@ static bool handle_test(UiState &s, const InputEvent &ev) {
     }
     if (ev.key == InputKey::Esc) {
         s.screen = Screen::Select;
-        s.status = "Press 1-5 to choose";
+        s.status = "Press 1-4 to choose";
         return true;
     }
     return false;
@@ -301,7 +295,7 @@ static bool handle_result(UiState &s, const InputEvent &ev) {
     s.buffer.clear();
     s.cursor = 0;
     s.screen = Screen::Select;
-    s.status = "Press 1-5 to choose";
+    s.status = "Press 1-4 to choose";
     return true;
 }
 
@@ -327,11 +321,9 @@ bool ui_pending_print(const UiState &s) {
 // material lives only inside wallet_print() and is zeroized there; we keep only
 // the public addresses.
 bool ui_run_print(UiState &s) {
-    if (s.wallet == WalletType::CUSTOM || s.wallet == WalletType::TEST ||
-        s.wallet == WalletType::MOCKXMR) {
-        bool ok = (s.wallet == WalletType::TEST)      ? test_print(s.send)
-                  : (s.wallet == WalletType::MOCKXMR) ? mock_xmr_addr_print(s.send)
-                                                      : custom_print(s.buffer, s.copies, s.send);
+    if (s.wallet == WalletType::CUSTOM || s.wallet == WalletType::TEST) {
+        bool ok = (s.wallet == WalletType::TEST) ? test_print(s.send)
+                                                 : custom_print(s.buffer, s.copies, s.send);
         if (ok) {
             s.pubkeys.clear();
             s.screen = Screen::Result;
@@ -363,11 +355,10 @@ static void render_select(lgfx::LGFX_Device &d, const UiState &) {
     d.setCursor(4, 4);
     d.print("Crypto Wallet");
 
-    static const char *opts[5] = {"1 BTC+ETH", "2 XMR", "3 Custom", "4 Test",
-                                  "5 XMR mock (dbg)"};
+    static const char *opts[4] = {"1 BTC+ETH", "2 XMR", "3 Custom", "4 Test"};
     d.setTextSize(2);
     d.setTextColor(TFT_WHITE, TFT_BLACK);
-    for (int i = 0; i < 5; ++i) {
+    for (int i = 0; i < 4; ++i) {
         d.setCursor(8, 24 + i * 20);
         d.print(opts[i]);
     }

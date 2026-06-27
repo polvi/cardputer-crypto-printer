@@ -49,7 +49,7 @@ enum class Screen { Select, Label, Confirm, Custom, Copies, Test, Printing, Resu
 
 // CUSTOM (free-form text) and TEST (fixed test card) aren't wallets — they route
 // to custom_print / test_print, never to wallet_print.
-enum class WalletType { BTC, ETH, BTC_ETH, XMR, CUSTOM, TEST, MOCKXMR };
+enum class WalletType { BTC, ETH, BTC_ETH, XMR, CUSTOM, TEST };
 
 // Human-readable name ("BTC", "ETH", "BTC+ETH", "XMR", "Custom", "Test").
 const char *wallet_name(WalletType w);
