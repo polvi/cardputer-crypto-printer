@@ -203,22 +203,36 @@ static esp_err_t c330_write_raw(const char *data, size_t len) {
     static constexpr size_t kChunk = 16;
     xSemaphoreTake(g_vcp_mutex, portMAX_DELAY);
     esp_err_t err = g_vcp ? ESP_OK : ESP_ERR_INVALID_STATE;
+    auto &d = M5Cardputer.Display;
+    d.setTextSize(1);
     for (size_t off = 0; off < len && err == ESP_OK; off += kChunk) {
-        for (int spins = 0; !g_cts && g_ready && spins < 24000; ++spins)
-            vTaskDelay(pdMS_TO_TICKS(5)); // inert unless chip flow control is off
         size_t n = (len - off < kChunk) ? (len - off) : kChunk;
-        // 60s timeout: the chip may hold this write while the printer XOFFs us for a
-        // whole card's emboss (~55s) with its FIFO full.
-        err = g_vcp->tx_blocking(
-            reinterpret_cast<uint8_t *>(const_cast<char *>(data + off)), n, 60000);
+
+        // The FTDI chip does the Xon/Xoff now: while the printer holds XOFF (busy
+        // embossing) the chip's FIFO fills and tx_blocking times out. That is NOT a
+        // failure -- it is the printer pacing us, possibly for a whole card's emboss
+        // (~55s) or a backlog of several. So retry until the chip accepts the bytes
+        // or the device unplugs. A 16-byte chunk is a single USB packet, so a timed-
+        // out chunk transferred nothing (NAK'd) -> resending is safe, no dup bytes.
+        for (uint32_t waits = 0;; ++waits) {
+            if (!g_ready) { err = ESP_ERR_INVALID_STATE; break; }
+            err = g_vcp->tx_blocking(
+                reinterpret_cast<uint8_t *>(const_cast<char *>(data + off)), n, 2000);
+            if (err != ESP_ERR_TIMEOUT) break; // accepted, or a genuine error
+            // still waiting on the printer; show we're alive, not hung
+            d.fillRect(0, 0, 240, 9, TFT_BLACK);
+            d.setTextColor(TFT_YELLOW, TFT_BLACK);
+            d.setCursor(2, 1);
+            char w[64];
+            snprintf(w, sizeof(w), "#%u TX%u/%u EMBOSSING %us", (unsigned)g_card_idx,
+                     (unsigned)off, (unsigned)len, (unsigned)(waits * 2));
+            d.print(w);
+        }
 
         // (debug) live readout. With chip Xon/Xoff working, XF/XN stay 0 (the chip
         // consumes the printer's flow bytes) and the print still completes -- that is
-        // the success signature. If XF climbs, the chip is NOT doing flow control and
-        // the software gate above is carrying it instead.
-        auto &d = M5Cardputer.Display;
+        // the success signature. If XF climbs, the chip is NOT doing flow control.
         d.fillRect(0, 0, 240, 9, TFT_BLACK);
-        d.setTextSize(1);
         d.setTextColor(g_cts ? TFT_GREEN : TFT_RED, TFT_BLACK);
         d.setCursor(2, 1);
         char b[64];
