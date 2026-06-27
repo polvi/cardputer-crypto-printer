@@ -163,6 +163,17 @@ static void usb_host_task(void *arg) {
         }
         dev->set_control_line_state(true, true); // DTR, RTS
 
+        // Enable the FTDI chip's HARDWARE Xon/Xoff flow control, exactly as the
+        // Linux ftdi_sio driver does for CUPS's flow=soft (which is why `lp`
+        // streams every card with no overrun). FTDI "Set Flow Control" is the REAL
+        // command 0x02 (the esp FTDI component mislabels 0x02 as "SET_MHS"); value
+        // = XOFF<<8 | XON = 0x1311, index = XON_XOFF_HS(0x0400) | channel 0. Now the
+        // chip halts its own TX the instant the C330 asserts XOFF -- byte-accurate,
+        // no software overshoot of the printer's field buffer (the E37 cause).
+        //   bmRequestType 0x40 = vendor | host-to-device | device.
+        esp_err_t fc = dev->send_custom_request(0x40, 0x02, 0x1311, 0x0400, 0, nullptr);
+        ESP_LOGI(TAG, "FTDI hw Xon/Xoff: %s", esp_err_to_name(fc));
+
         xSemaphoreTake(g_vcp_mutex, portMAX_DELAY);
         g_vcp.reset(dev);
         xSemaphoreGive(g_vcp_mutex);
@@ -179,31 +190,32 @@ static void usb_host_task(void *arg) {
     }
 }
 
-// Low-level write to the C330. The C330 paces us with Xon/Xoff, but the catch is
-// the FTDI chip's own TX buffer: if we dump a card into it over USB, the chip keeps
-// clocking those bytes to the printer at 9600 baud even after the printer asserts
-// XOFF, overrunning the printer's field buffer on a big card (E37). So we send in
-// SMALL chunks and wait after each for the chip to drain that chunk to the printer
-// (16 bytes @ 9600 baud ~= 17ms) before sending more. That keeps the chip buffer
-// nearly empty, so when the printer XOFFs we have only a few bytes in flight — like
-// CUPS's byte-level flow=soft. We also gate on the software XOFF (g_cts). Returns
-// ESP_OK on success.
+// Low-level write to the C330. Flow control is now done by the FTDI CHIP itself
+// (hardware Xon/Xoff enabled at connect), exactly like CUPS's flow=soft path: the
+// chip halts its own TX the instant the printer asserts XOFF, so we cannot overrun
+// the printer's field buffer no matter how fast we feed it. Back-pressure surfaces
+// naturally -- when the chip is paused (XOFF) its TX FIFO fills and tx_blocking
+// blocks until the chip drains -- so we give it a long timeout to ride out a full
+// card's emboss. The software g_cts gate is kept only as an inert fallback (if the
+// chip flow control were not active, the printer's XOFF would still reach us).
+// Returns ESP_OK on success.
 static esp_err_t c330_write_raw(const char *data, size_t len) {
     static constexpr size_t kChunk = 16;
     xSemaphoreTake(g_vcp_mutex, portMAX_DELAY);
     esp_err_t err = g_vcp ? ESP_OK : ESP_ERR_INVALID_STATE;
     for (size_t off = 0; off < len && err == ESP_OK; off += kChunk) {
         for (int spins = 0; !g_cts && g_ready && spins < 24000; ++spins)
-            vTaskDelay(pdMS_TO_TICKS(5)); // wait out an XOFF; bail on unplug
+            vTaskDelay(pdMS_TO_TICKS(5)); // inert unless chip flow control is off
         size_t n = (len - off < kChunk) ? (len - off) : kChunk;
+        // 60s timeout: the chip may hold this write while the printer XOFFs us for a
+        // whole card's emboss (~55s) with its FIFO full.
         err = g_vcp->tx_blocking(
-            reinterpret_cast<uint8_t *>(const_cast<char *>(data + off)), n, 5000);
-        vTaskDelay(pdMS_TO_TICKS(25)); // let the chip clock this chunk to the printer
+            reinterpret_cast<uint8_t *>(const_cast<char *>(data + off)), n, 60000);
 
-        // (debug) live flow-control readout: TX sent / total, RX bytes from printer,
-        // XOFF/XON counts, current CTS. Watch this during the public-key card: if
-        // XOFF stays 0 / CTS stays 1 the printer never paced us (we're not seeing
-        // its flow control); if XOFF climbs, flow control is working.
+        // (debug) live readout. With chip Xon/Xoff working, XF/XN stay 0 (the chip
+        // consumes the printer's flow bytes) and the print still completes -- that is
+        // the success signature. If XF climbs, the chip is NOT doing flow control and
+        // the software gate above is carrying it instead.
         auto &d = M5Cardputer.Display;
         d.fillRect(0, 0, 240, 9, TFT_BLACK);
         d.setTextSize(1);
@@ -214,23 +226,6 @@ static esp_err_t c330_write_raw(const char *data, size_t len) {
                  (unsigned)(off + n), (unsigned)len, (unsigned)g_rx_total,
                  (unsigned)g_xoff_total, (unsigned)g_xon_total, (int)g_cts);
         d.print(b);
-    }
-
-    // Wait for the printer to FINISH embossing this card before returning. The
-    // earlier cards were paced only by the *next* card's startup XOFF-wait; the
-    // final card has no next card, so we'd otherwise fire its bytes and flip
-    // straight to the QR while the printer is still draining the previous card --
-    // overrunning its field buffer (E37). The C330 holds XOFF (g_cts=false) while
-    // embossing and returns to a steady XON when the card is done.
-    if (err == ESP_OK && g_ready) {
-        for (int w = 0; w < 5000 && g_cts && g_ready; w += 20)
-            vTaskDelay(pdMS_TO_TICKS(20)); // (a) wait for the emboss to START (XOFF)
-        int steady = 0;                    // (b) then for it to FINISH (XON held)
-        for (int w = 0; w < 90000 && g_ready; w += 20) {
-            vTaskDelay(pdMS_TO_TICKS(20));
-            steady = g_cts ? steady + 20 : 0;
-            if (steady >= 700) break; // XON steady 700ms -> card embossed, printer idle
-        }
     }
     xSemaphoreGive(g_vcp_mutex);
     return err;
