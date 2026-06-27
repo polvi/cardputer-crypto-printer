@@ -38,8 +38,7 @@ ESP-IDF/M5GFX headers) — trust the `pio run` result.
 - `src/wallet_crypto.cpp` — real on-device key derivation (behind
   `-DWALLET_REAL_CRYPTO`, device only) using vendored `lib/trezor-crypto`. The sim
   uses fixed test vectors.
-- `src/c330_format.{h,cpp}` — the C330 plate byte format. **Must stay byte-for-byte
-  faithful to `docs/keyprint.go`** (the proven reference tool).
+- `src/c330_format.{h,cpp}` — the C330 plate byte format. 
 - `docs/keyprint.go` — reference implementation; `docs/C330_*` — printer manuals.
 
 ## Non-obvious rules (learned the hard way)
@@ -49,24 +48,20 @@ ESP-IDF/M5GFX headers) — trust the `pio run` result.
 2. **Secrets never leak.** Private/mnemonic material lives only inside
    `wallet_print()`, is zeroized there, and must never enter `UiState`, the screen,
    or logs.
-3. **Match `keyprint.go`.** The C330 stream is `F0` info, `F1` word cards (re-emitted
-   per card), `F3` address — exact formats, exact order (XMR words are sent
-   **descending**: 21-25, 11-20, 1-10). Verify crypto/format changes natively
-   against `docs/keyprint.go` before trusting them.
-4. **Printer transport — do NOT retry a timed-out `tx_blocking` chunk.** cdc_acm's
+3. **Printer transport — do NOT retry a timed-out `tx_blocking` chunk.** cdc_acm's
    timeout resets the endpoint, which *completes* the in-flight transfer, so a
    resend duplicates bytes and corrupts the stream → the C330 throws **E37**. Flow
    control is the **FTDI chip's hardware Xon/Xoff** (enabled at connect in
    `main.cpp` via `SET_FLOW_CTRL`); `tx_blocking` just blocks on the full FIFO with a
    long timeout. Don't reintroduce software Xon/Xoff or per-chunk retries.
-5. **C-string safety.** The original E37 was an *unterminated* address buffer: a
+4. **C-string safety.** The original E37 was an *unterminated* address buffer: a
    trezor base58 encoder writes the chars but doesn't NUL-terminate, and
    `out = addr` read past the end into stack garbage → over-long field → E37. **Use
    the length the encoder returns** (`out.assign(addr, n)`), don't rely on
    termination. Watch for this pattern in any new encoder use.
-6. **C330 field limit ≈ 32 chars/line** at X100/CI10; lines are uppercase-only and
+5. **C330 field limit ≈ 32 chars/line** at X100/CI10; lines are uppercase-only and
    mixed case (addresses) is faked by stacking two rows 7 units apart (`mx_message`).
-7. **UI is shared.** Device-specific keyboard quirks live in `main.cpp` (e.g. the
+6. **UI is shared.** Device-specific keyboard quirks live in `main.cpp` (e.g. the
    wide space bar lands in `st.word` repeatedly — emit one space via `st.space`;
    Esc/arrows are the Fn layer reported as `st.esc/up/down/left/right`). The sim's
    SDL path is separate. Platform-specific prompt text uses the **`UI_PRINT_KEY`**
