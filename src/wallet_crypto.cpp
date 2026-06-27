@@ -170,8 +170,11 @@ static void xmr_address_from_key(const uint8_t key[32], std::string &out) {
     ge25519_pack(data, &Ps);
     ge25519_pack(data + 32, &Pv);
     char addr[160];
-    xmr_base58_addr_encode_check(18, data, 64, addr, sizeof(addr));
-    out = addr;
+    // xmr_base58_addr_encode_check writes the chars but does NOT NUL-terminate, so
+    // assign exactly the returned length -- `out = addr` would read uninitialized
+    // stack garbage past the address, yielding an over-long final field -> C330 E37.
+    int n = xmr_base58_addr_encode_check(18, data, 64, addr, sizeof(addr));
+    out.assign(addr, n > 0 ? (size_t)n : 0);
     memzero(spend, sizeof(spend));
     memzero(view, sizeof(view));
     memzero(sb, sizeof(sb));
