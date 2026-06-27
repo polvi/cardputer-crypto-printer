@@ -544,26 +544,34 @@ static void render_printing(lgfx::LGFX_Device &d, const UiState &s) {
     d.print("Embossing plates - please wait");
 }
 
-// Battery gauge: "<pct>% [icon]" just left of the connection dot, top-right.
-// Drawn only when the level is known (the sim leaves it -1).
+// Battery gauge: "<pct>% [icon]" just left of the connection dot, top-right. A
+// lightning bolt is drawn over the icon while charging. Drawn only when the level
+// is known (the sim leaves it -1).
 static void draw_battery(lgfx::LGFX_Device &d, const UiState &s) {
     if (s.battery < 0) return;
     const int bw = 20, bh = 10;
     const int x = d.width() - 14 - bw;   // leave room for the connection dot
     const int y = 2;
-    const uint16_t col = s.charging          ? TFT_CYAN
-                         : s.battery <= 20    ? TFT_RED
-                         : s.battery <= 50    ? TFT_YELLOW
-                                              : TFT_GREEN;
+    const uint16_t col = s.battery <= 20 ? TFT_RED
+                       : s.battery <= 50 ? TFT_YELLOW
+                                         : TFT_GREEN;
     d.drawRect(x, y, bw, bh, TFT_WHITE);             // body
     d.fillRect(x + bw, y + 3, 2, bh - 6, TFT_WHITE); // + terminal nub
     int fw = (bw - 4) * s.battery / 100;             // fill proportional to level
     if (fw > 0) d.fillRect(x + 2, y + 2, fw, bh - 4, col);
 
+    if (s.charging) { // lightning bolt centred on the icon
+        const int cx = x + bw / 2, cy = y + bh / 2;
+        d.fillTriangle(cx + 1, cy - 4, cx - 2, cy + 1, cx + 2, cy + 1, TFT_BLACK);
+        d.fillTriangle(cx - 1, cy + 4, cx + 2, cy - 1, cx - 2, cy - 1, TFT_BLACK);
+        d.fillTriangle(cx + 1, cy - 4, cx - 1, cy + 1, cx + 1, cy + 1, TFT_WHITE);
+        d.fillTriangle(cx - 1, cy + 4, cx + 1, cy - 1, cx - 1, cy - 1, TFT_WHITE);
+    }
+
     char b[8];
     snprintf(b, sizeof(b), "%d%%", s.battery);
     d.setTextSize(1);
-    d.setTextColor(TFT_WHITE, TFT_BLACK);
+    d.setTextColor(s.charging ? TFT_CYAN : TFT_WHITE, TFT_BLACK);
     d.setCursor(x - d.textWidth(b) - 3, y + 1);
     d.print(b);
 }
