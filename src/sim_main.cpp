@@ -125,7 +125,8 @@ void setup(void) {
     SDL_AddEventWatch(event_watch, nullptr);
 
     ui_init(g_ui, sim_send, nullptr);
-    ui_set_connected(g_ui, true); // pretend the printer is attached
+    ui_set_connected(g_ui, true);    // pretend the printer is attached
+    ui_set_battery(g_ui, 80, false); // fake gauge so the chrome is visible in the sim
     ui_render(g_display, g_ui);
 }
 

@@ -49,6 +49,15 @@ bool ui_set_connected(UiState &s, bool connected) {
     return true; // just repaint the connection indicator
 }
 
+bool ui_set_battery(UiState &s, int level, bool charging) {
+    if (level > 100) level = 100;
+    if (level < 0)   level = -1; // unknown
+    if (s.battery == level && s.charging == charging) return false;
+    s.battery  = level;
+    s.charging = charging;
+    return true;
+}
+
 // ============================================================================
 // Input handling (per-screen)
 // ============================================================================
@@ -535,9 +544,34 @@ static void render_printing(lgfx::LGFX_Device &d, const UiState &s) {
     d.print("Embossing plates - please wait");
 }
 
+// Battery gauge: "<pct>% [icon]" just left of the connection dot, top-right.
+// Drawn only when the level is known (the sim leaves it -1).
+static void draw_battery(lgfx::LGFX_Device &d, const UiState &s) {
+    if (s.battery < 0) return;
+    const int bw = 20, bh = 10;
+    const int x = d.width() - 14 - bw;   // leave room for the connection dot
+    const int y = 2;
+    const uint16_t col = s.charging          ? TFT_CYAN
+                         : s.battery <= 20    ? TFT_RED
+                         : s.battery <= 50    ? TFT_YELLOW
+                                              : TFT_GREEN;
+    d.drawRect(x, y, bw, bh, TFT_WHITE);             // body
+    d.fillRect(x + bw, y + 3, 2, bh - 6, TFT_WHITE); // + terminal nub
+    int fw = (bw - 4) * s.battery / 100;             // fill proportional to level
+    if (fw > 0) d.fillRect(x + 2, y + 2, fw, bh - 4, col);
+
+    char b[8];
+    snprintf(b, sizeof(b), "%d%%", s.battery);
+    d.setTextSize(1);
+    d.setTextColor(TFT_WHITE, TFT_BLACK);
+    d.setCursor(x - d.textWidth(b) - 3, y + 1);
+    d.print(b);
+}
+
 static void draw_chrome(lgfx::LGFX_Device &d, const UiState &s) {
     // connection indicator dot, top-right
     d.fillCircle(d.width() - 7, 7, 4, s.connected ? TFT_GREEN : TFT_RED);
+    draw_battery(d, s);
 
     // shared status line, bottom
     d.setTextSize(1);

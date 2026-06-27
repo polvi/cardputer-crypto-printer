@@ -74,6 +74,8 @@ struct UiState {
     unsigned    cursor    = 0;   // REUSED as the label caret
     std::string status;          // bottom status line
     bool        connected = false; // printer (C330) attached
+    int         battery   = -1;   // battery %, 0-100 (-1 = unknown, e.g. the sim)
+    bool        charging  = false; // battery is charging
     SendFn      send      = nullptr;
 
     // --- screen machine ---
@@ -92,6 +94,10 @@ void ui_init(UiState &s, SendFn send, const char *status);
 
 // Update the connection indicator. Returns true if it changed (redraw needed).
 bool ui_set_connected(UiState &s, bool connected);
+
+// Update the battery gauge (level 0-100, or <0 if unknown). Returns true if it
+// changed enough to warrant a redraw.
+bool ui_set_battery(UiState &s, int level, bool charging);
 
 // Apply one input event. Returns true if the UI changed and should be redrawn.
 bool ui_handle_input(UiState &s, const InputEvent &ev);

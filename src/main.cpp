@@ -229,6 +229,17 @@ void loop() {
 
     bool dirty = ui_set_connected(g_ui, g_ready);
 
+    // Sample the battery every few seconds (the ADC read is mildly expensive and
+    // the level moves slowly); redraw only when the gauge actually changes.
+    static uint32_t last_bat_ms = 0;
+    uint32_t now = millis();
+    if (last_bat_ms == 0 || now - last_bat_ms >= 5000) {
+        last_bat_ms = now;
+        if (ui_set_battery(g_ui, M5Cardputer.Power.getBatteryLevel(),
+                           M5Cardputer.Power.isCharging()))
+            dirty = true;
+    }
+
     if (M5Cardputer.Keyboard.isChange() && M5Cardputer.Keyboard.isPressed()) {
         Keyboard_Class::KeysState st = M5Cardputer.Keyboard.keysState();
 
