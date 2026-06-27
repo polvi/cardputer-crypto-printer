@@ -110,11 +110,15 @@ bool print_xmr(const std::string &label, SendFn sink, WalletPublic &out) {
     std::string addr;
     if (!wallet_generate_xmr(words, addr)) return false;
     out.keys.push_back({"XMR", addr});
+    // keyprint.go main() writes the cards to stdout in this order: info, then the
+    // word cards DESCENDING (KeyPrint_PKey_XMR_Mnemonic returns str2,str1,str0 =
+    // 21-25,11-20,1-10), then the address. Descending send => top-down read order
+    // 1..25 once the cards stack.
     std::vector<std::string> plates = {
         c330::plate_info(c330::WalletKind::Xmr),
-        c330::plate_xmr_words_1_10(words),
-        c330::plate_xmr_words_11_20(words),
         c330::plate_xmr_words_21_25(words),
+        c330::plate_xmr_words_11_20(words),
+        c330::plate_xmr_words_1_10(words),
         c330::plate_xmr_address(addr, "XMR", label, kMintDate),
     };
     bool ok = send_plates(plates, sink);
@@ -170,9 +174,9 @@ bool mock_xmr_addr_print(SendFn sink) {
         "4B3ut4pQGkxcUW41Qz3Fd3T6PnNY8JP5y7Re14xJR71CJj3W7SrZvCdDn9X981h8g1GdaRdvaj5Tv4JbTVvrmhXP8XTWijA";
     std::vector<std::string> plates = {
         c330::plate_info(c330::WalletKind::Xmr),
-        c330::plate_xmr_words_1_10(words),
-        c330::plate_xmr_words_11_20(words),
         c330::plate_xmr_words_21_25(words),
+        c330::plate_xmr_words_11_20(words),
+        c330::plate_xmr_words_1_10(words),
         c330::plate_xmr_address(addr, "XMR", "CAKE5", kMintDate),
     };
     return send_plates(plates, sink);
