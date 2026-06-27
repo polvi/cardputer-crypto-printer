@@ -8,11 +8,11 @@ The Cardputer's USB-C port runs in **USB host** mode and drives the printer's
 **FTDI** USB-serial chip directly — plug the printer into the Cardputer with a
 USB host/OTG cable, no PC in the loop.
 
-> Status: complete and ready for hardware bring-up. **Real on-device key
-> generation** for BTC+ETH and XMR (verified natively against `docs/keyprint.go`
-> and BIP39 test vectors), the **C330 printer link** (FTDI USB-host, 9600 8N1,
-> Xon/Xoff), and four print modes (BTC+ETH, XMR, Custom, Test). See "Key-generation
-> status" and "First run" below.
+> Status: working end-to-end on hardware. **Real on-device key generation** for
+> BTC+ETH and XMR (verified natively against `docs/keyprint.go` and BIP39 test
+> vectors), the **C330 printer link** (FTDI USB-host, 9600 8N1, hardware Xon/Xoff),
+> and three print modes (BTC+ETH, XMR, Custom). See "Key-generation status" and
+> "First run" below.
 
 **Air-gapped by design.** The only thing this firmware ever drives is USB-serial
 to the printer. There is no network path: every cloud / radio / network component
@@ -27,8 +27,9 @@ A screen state machine (`src/ui.cpp`), hardware-independent so it runs on both
 the device and the desktop simulator:
 
 1. **Select** — pick with a number key: `1` BTC+ETH, `2` XMR, `3` **Custom**
-   (a few free-form lines on one card), `4` **Test** (one fixed card, no typing —
-   the quickest way to validate the C330 link). (Solo BTC/ETH are hidden.)
+   (a few free-form lines on one card). (Solo BTC/ETH are hidden.) The top-right
+   chrome shows a **battery gauge** (a charging bolt when on power) and a
+   **printer-connection dot** (green = the C330's FTDI port is enumerated).
 2. **Label** — optionally type a label (max 24 chars), editable with the arrow
    caret. Enter continues, Esc goes back. (For **Custom**, this step is instead a
    multi-line editor — see below.)
@@ -56,10 +57,8 @@ format/order of the reference tool `docs/keyprint.go` (verified against it):
   editor is a small multi-line text field (Enter = new line). G0/⌘+Enter goes to a
   **Copies** screen (default **1**; type a number or step with Up/Dn, max 99), then
   G0/⌘+Enter embosses that many identical cards (the hopper auto-feeds each). The
-  Result screen confirms "CARD PRINTED".
-- **Test**: a fixed single `]F0` plate (`C330 TEST CARD` / `CARDPUTER LINK OK` /
-  `MINTED <build date>`) — no input, no crypto. Press `4` then G0/⌘+Enter; the
-  quickest end-to-end check of the USB→FTDI→C330 link.
+  Result screen confirms "CARD PRINTED". Custom is also the quickest no-crypto check
+  of the USB→FTDI→C330 link.
 
 The "MINTED ON" date is the firmware **build date** (`__DATE__`, no RTC on the
 air-gapped device).
@@ -94,8 +93,12 @@ the public addresses come back for the QR screen.
 >   **verified natively, byte-for-byte vs `docs/keyprint.go`**: a fixed spend key →
 >   `slower aisle gorilla … emulate abbey` →
 >   `4B3ut4pQGkxcUW41Qz3Fd3T6PnNY8JP5y7Re14xJR71…XTWijA` (matched by both the words
->   and the address). The sim shows that seed + address. *Restorable in the Monero
->   GUI / Cake Wallet; final acceptance: restore it and confirm the address.*
+>   and the address). The sim shows that seed + address. The on-device address
+>   encoder now returns the exact length (a missing NUL-terminator once produced an
+>   over-long final field that tripped the C330's E37 field-buffer limit on the
+>   public-key card — fixed). *Final acceptance before trusting a card with funds:
+>   restore the printed 25-word seed in the Monero GUI / Cake Wallet and confirm the
+>   address matches the QR.*
 
 ## Printer link
 
@@ -104,10 +107,12 @@ the public addresses come back for the QR screen.
    the printer shows at power-on** (`Prot:Xon-Xoff Baud:NNNN`); it's set by
    `C330_BAUD` in `src/main.cpp` (the C330 menu default is 57600, but units can be
    set lower — this one is 9600).
-2. On print, all plates stream back-to-back. The firmware honors the C330's
-   **Xon/Xoff** (`main.cpp`): it pauses on XOFF (0x13) and resumes on XON (0x11)
-   so a multi-plate stream never overflows the machine's buffer (error E64).
-   Each plate carries its own `]Fn` layout, so no format pre-load is needed.
+2. On print, all plates stream back-to-back. Flow control is done by the **FTDI
+   chip's hardware Xon/Xoff**, which `main.cpp` enables at connect (the same
+   `SET_FLOW_CTRL` the Linux `ftdi_sio` driver issues for CUPS's `flow=soft`): the
+   chip pauses its own transmit the instant the C330 asserts XOFF, so a multi-plate
+   stream can't overrun the machine's ~1.1 KB receive buffer (error E64). Each plate
+   carries its own `]Fn` layout, so no format pre-load is needed.
 
 ## Hardware / wiring
 
@@ -142,7 +147,7 @@ components automatically (a few minutes; later builds are fast).
    pio run -e m5stack-cardputer -t upload --upload-port /dev/cu.usbmodem*
    ```
 3. The Cardputer reboots into the app and shows the **Select** screen
-   (`1 BTC+ETH … 4 Test`). Flashing is complete.
+   (`1 BTC+ETH / 2 XMR / 3 Custom`). Flashing is complete.
 
 > **If upload fails to start:** hold the Cardputer's **G0** (top) button while
 > plugging in the USB-C cable to force the ROM bootloader, then re-run the upload.
@@ -182,16 +187,16 @@ Walk the whole flow in the window:
 
 | Key (sim) | Action |
 | --- | --- |
-| `1`–`4` | choose BTC+ETH / XMR / Custom / Test |
+| `1`–`3` | choose BTC+ETH / XMR / Custom |
 | typing | edit text — folded to uppercase, restricted to the C330 charset (incl. Space) |
 | **⌥ + `;,./`** or desktop arrows | move the caret |
 | **Enter** | Label → Confirm; on **Custom**, insert a new line |
-| **⌘ + Enter** | the **print button** (G0 stand-in) — prints on Confirm, Custom, and Test |
+| **⌘ + Enter** | the **print button** (G0 stand-in) — prints on Confirm and Custom |
 | **Esc** | go back a screen |
 
 On print, the payload prints to the terminal as `TX -> C330: …` and the Result
-screen shows the QR(s) (or "CARD PRINTED" for Custom/Test). The same `ui_*` code
-runs unchanged on the device (where the **top G0 button** prints).
+screen shows the QR(s) (or "CARD PRINTED" for Custom). The same `ui_*` code runs
+unchanged on the device (where the **top G0 button** prints).
 
 **Arrow keys.** The real Cardputer has no arrow keys — it uses **Fn + `;`(up)
 `,`(left) `.`(down) `/`(right)**. macOS can't expose the hardware Fn key to SDL,
@@ -219,22 +224,23 @@ Bring it up in stages so the first thing you test is the *link*, not a real wall
      the adapter actually signals OTG host mode (CC/ID to ground), then that the
      Cardputer is asserting VBUS in host mode. Only if VBUS is the problem does a
      **powered OTG adapter / Y-cable** (which injects 5 V) help.
-3. **Test card first (`4`).** Press `4`, then the **G0** top button (⌘+Enter in the
-   sim). This embosses one throwaway card (`C330 TEST CARD / CARDPUTER LINK OK /
-   MINTED <build date>`) — no crypto, no typing. It validates the whole
-   USB→FTDI→C330 path in one keystroke. If this card comes out clean, the link works.
-4. **Custom (`3`), optional.** Type a few lines, G0 to print — validates multi-line
-   layout with your own text.
-5. **Real wallet (`1` or `2`).** Pick the type, optionally type a label, review the
+3. **Custom card first (`3`).** Press `3`, type a line or two, then **G0** (⌘+Enter
+   in the sim) → set copies → **G0**. This embosses a throwaway card with no crypto
+   and no secrets — the quickest validation of the whole USB→FTDI→C330 path. If it
+   comes out clean, the link works.
+4. **Real wallet (`1` or `2`).** Pick the type, optionally type a label, review the
    **Confirm** screen, then **press G0 once** to generate + stream all plates. The
-   C330 hopper **auto-feeds a blank per plate** (4 cards for BTC+ETH/XMR). Capture
-   the public-key **QR(s)** on the Result screen, then press any key to wipe and
-   start over. *Private material is zeroized the moment the plates finish streaming.*
+   C330 hopper **auto-feeds a blank per plate** (BTC+ETH = 4 cards; XMR = 5: info,
+   three word cards, address). Capture the public-key **QR(s)** on the Result screen,
+   then press any key to wipe and start over. *Private material is zeroized the
+   moment the plates finish streaming.*
 
-**Watch the C330 LCD** for error codes while embossing (manual §8): **E64** =
-buffer overflow (a flow-control problem — shouldn't happen with Xon/Xoff), **E82**
-= feeder empty (reload the hopper). The firmware doesn't read status back, so the
-LCD is your source of truth for printer-side errors.
+**Watch the C330 LCD** for error codes while embossing (manual §8): **E37** =
+field-buffer overflow (a field longer than the format allows — shouldn't happen
+with the current layouts), **E64** = receive-buffer overflow (a flow-control
+problem — shouldn't happen with the chip's hardware Xon/Xoff), **E82** = feeder
+empty (reload the hopper). The firmware doesn't read status back, so the LCD is your
+source of truth for printer-side errors.
 
 > **Final XMR acceptance:** before trusting a Monero card with funds, restore its
 > printed 25-word seed into a real Monero wallet (GUI or Cake Wallet) and confirm
@@ -250,8 +256,8 @@ LCD is your source of truth for printer-side errors.
 | `src/c330_format.h` / `.cpp` | C330 plate format (BTC+ETH BIP39 + XMR 25-word), per-key info lines |
 | `src/xmr_wordlist.h` | Monero English wordlist (1626 words) for the 25-word seed |
 | `src/wallet.h` / `src/wallet.cpp` | Security seam: generate → emboss → zeroize; key-gen behind `WALLET_REAL_CRYPTO` |
-| `src/main.cpp` | Device front-end: keyboard + G0 button + USB-host FTDI bridge + Xon/Xoff |
-| `src/sim_main.cpp` | Desktop front-end: SDL window + Mac keyboard (Enter prints) |
+| `src/main.cpp` | Device front-end: keyboard + G0 button + battery + USB-host FTDI bridge (chip hardware Xon/Xoff) |
+| `src/sim_main.cpp` | Desktop front-end: SDL window + Mac keyboard (⌘+Enter prints) |
 | `src/idf_component.yml` | ESP-IDF USB-host components (FTDI/CP210x/CH34x) |
 | `docs/keyprint.go` | Reference Go implementation (key derivation + C330 format) |
 | `docs/` | C330 Operator Manual + Cardputer docs link |
