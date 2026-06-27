@@ -118,21 +118,6 @@ std::string word_plate_single(char fmt, const std::string *w, int start, int cou
     return to_upper(out);
 }
 
-// Just the <text> block (no format header) for a two-words-per-line card. Reuses
-// whichever format was last defined on the printer. `count` words from `start`.
-std::string word_text(const std::string *w, int start, int count, int pad) {
-    std::string out = "\n<";
-    for (int i = 0; i < count; i += 2) {
-        char line[48];
-        snprintf(line, sizeof(line), "%2d %-*s%2d %s",
-                 start + i + 1, pad, w[start + i].c_str(),
-                 start + i + 2, w[start + i + 1].c_str());
-        out += line;
-        if (i < count - 2) out += "\n";
-    }
-    out += ">\n";
-    return to_upper(out);
-}
 
 } // namespace
 
@@ -163,19 +148,18 @@ std::string plate_mnemonic_13_24(const std::array<std::string, 24> &words) {
     return word_plate('3', words.data(), 12, 12, 11);
 }
 
-// Define the shared 5-row word format ONCE (F1, via the 21-25 card), then the
-// other two word cards are text-only blocks that reuse F1 — so the job sends only
-// 3 format definitions total (F0 info, F1 words, F2 address), within the C330's
-// ~3-format memory. Re-sending a format per card overflows it -> E37 on a later
-// card. All three share the same 5-row Y085 layout; only the text differs.
+// keyprint.go PKey_XMR_Mnemonic_Print_Template0/1/2: each word card RE-EMITS its
+// own <]F1 ..> block (re-defining F1 resets the printer's field buffer per card).
+// 1-10 and 11-20 are two-per-line (pad 12); 21-25 is one-per-line. Same 5-row
+// Y085 layout each.
+std::string plate_xmr_words_1_10(const std::array<std::string, 25> &words) {
+    return word_plate('1', words.data(), 0, 10, 12, 85);
+}
+std::string plate_xmr_words_11_20(const std::array<std::string, 25> &words) {
+    return word_plate('1', words.data(), 10, 10, 12, 85);
+}
 std::string plate_xmr_words_21_25(const std::array<std::string, 25> &words) {
-    return word_plate_single('1', words.data(), 20, 5, 85); // <]F1 ..><text>
-}
-std::string plate_xmr_words_11_20_text(const std::array<std::string, 25> &words) {
-    return word_text(words.data(), 10, 10, 12); // <text>, reuses F1
-}
-std::string plate_xmr_words_1_10_text(const std::array<std::string, 25> &words) {
-    return word_text(words.data(), 0, 10, 12); // <text>, reuses F1
+    return word_plate_single('1', words.data(), 20, 5, 85);
 }
 
 std::string plate_addresses(const std::string &btc, const std::string &eth,
@@ -211,12 +195,13 @@ std::string plate_addresses(const std::string &btc, const std::string &eth,
 
 std::string plate_xmr_address(const std::string &addr, const std::string &header,
                               const std::string &message, const std::string &date) {
-    // The 95-char monero address split into 4 hyphen-joined lines (22/24/24/25),
-    // mixed-case -> row-stacking. F2 card. Build the logical lines in order and
-    // SKIP the message line when it is empty (an empty field upsets the C330's
-    // parser -> E37). Layout and text are built in the SAME order so coords match.
+    // F3 card, exactly as keyprint.go PKey_Print_Template / PKey_XMR_Layout: text
+    // order is Message, MINTED-date, then the 95-char monero address in 4 hyphen-
+    // joined lines (22/24/24/25), each mixed-case -> row-stacking. The Message line
+    // is ALWAYS emitted (even empty) to match the proven stream. Layout and text are
+    // built in the SAME order so coordinates line up.
     std::vector<std::string> raw;
-    if (!message.empty()) raw.push_back(to_upper(message));
+    raw.push_back(to_upper(message));
     raw.push_back(to_upper("MINTED ON " + date));
     raw.push_back(to_upper(header) + addr.substr(0, 22) + "-");
     raw.push_back("-" + (addr.size() > 22 ? addr.substr(22, 24) : std::string()) + "-");
@@ -230,7 +215,7 @@ std::string plate_xmr_address(const std::string &addr, const std::string &header
         text += m;
         if (i + 1 < raw.size()) { layout += "\n"; text += "\n"; }
     }
-    return to_upper("\n<]F2 SY540SX860\n" + layout + ">\n\n<" + text + ">\n");
+    return to_upper("\n<]F3 SY540SX860\n" + layout + ">\n\n<" + text + ">\n");
 }
 
 std::string plate_custom(const std::vector<std::string> &lines) {
