@@ -1,0 +1,527 @@
+C330 METAL PLATE
+EMBOSSER MACHINE
+METALLINO Setup Ver. 2.00.00.02
+
+SETUP GUIDE
+Revision 1.0
+
+Important: the technical information contained in this manual is property
+of Matica Fintec S.p.A. and is secured by copyright.
+The terms of the license define and specify permitted uses and other
+limitations.
+Reproduction of any part of this manual, in any form, is forbidden without
+the explicit written permission of Matica Fintec S.p.A.
+Technical information contained in the present manual is subject to change
+without notice.
+If not otherwise specified, any reference to companies, names, dates and
+addresses is purely incidental and is only intended to illustrate the use of the
+Matica Fintec S.p.A. product.
+Every care has been taken in the collection and verification of the
+documentation inserted in this manual; nevertheless, Matica Fintec S.p.A.
+cannot assume any responsibility deriving from its use.
+
+Copyright © 2020 Matica Fintec SpA
+All rights reserved
+Published by Matica Fintec SpA
+
+Printed in Italy
+Issue: June 2020
+Revision 1.0
+
+Matica Fintec SpA
+vicolo Omar, 33
+28066 – Galliate (NO)
+ITALY
+Phone +39.0321.1828601
+Fax +39. 0321.1828690
+
+E-mail: tcc@maticafintec.com
+Web: http://www.maticafintec.com
+
+C330 Setup Guide
+
+Rev. 1.0
+
+Page 2/22
+
+Table of contents
+Paragraph 1 – Introduction ................................................... 4
+
+Paragraph 2 – Main ................................................................ 5
+
+Paragraph 3 – Setup ............................................................... 10
+
+Paragraph 4 – HW Test .......................................................... 20
+
+C330 Setup Guide
+
+Rev. 1.0
+
+Page 3/22
+
+Paragraph 1 – Introduction
+MATICA C330 Setup SW tool has been developed based on L2 protocol to handle the C330 Metal
+Embossing Machine for Maintenance/Service.
+To connect C330 to Host Pc by L2 Protocol, hold “SET” button from machine control panel and power ON
+the machine till "POWER ON" massage is pop up, after release “SET” button and click it once again to get
+"PC SETUP ON LINE" status.
+Run C330 Setup and follow “Machine connection and initialization” instruction reported in the Paragraph 1
+
+C330 Setup Guide
+
+Rev. 1.0
+
+Page 4/22
+
+Paragraph 2 – Main
+
+Machine connection and initialization with Host PC by C330 setup application
+o “Connection” Serial RS 422, to set COM port defined on TEST.cfg file available on “C330
+setup” main folder.
+
+o From Status sector, press “Status” button till get machine connection with host PC and
+READY status on read only field.
+If “BUSY” status is shown, it means the machine is already busy.
+
+“Reset” to cloase L2 communication with Host Pc.
+For machine error messages ”error” no. and status are shown accordigly.
+
+C330 Setup Guide
+
+Rev. 1.0
+
+Page 5/22
+
+o From Startup Module sector, press “Restore” button to run HW machine initialization, “END
+CMD” the Restore END command will pop up, so press “Status” button to get Machine
+“Ready” status.
+
+Note: every time a command is executed, press “Status” button to get machine READY
+Status , before to execute next command.
+
+Machine FW Version
+From FW version sector, press “GET” button to FW version reading from connected Machine Board.
+
+Machine Warning
+From Warning sector, press “GET” button to machine counter reading and check machine COVER status.
+Machine model “MATICA C330” and machine Description ”LA METALLINO CON B3” are shown as
+well.
+
+C330 Setup Guide
+
+Rev. 1.0
+
+Page 6/22
+
+Machine Sensors
+From Sensors sector, press ”READ” button to start to sensor reading in real time according with “Refresh
+time” set.
+
+“
+“
+
+” Green is sensor free status
+” Red is sensor busy status
+
+[A] “AB X”
+[B] “AB Y”
+[C] “AB Z“
+[D] ” X TO”
+[E] “TIME PUNCH”
+[F] NOT USED
+[G] NOT USED
+
+C330 Setup Guide
+
+X axis total steps
+Y axis total steps
+Drum axis total steps
+X total steps calculated between X Home and X E End carriage
+sensors (calculated value after “XH-XE” command).
+Punch cycle timing
+
+Rev. 1.0
+
+Page 7/22
+
+Machine Input/ Output card
+From Machine READY Status,
+Press “LOAD” to card loading from feeder module by clamp.
+Press “Preload” to clamp positioning in front of the feeder.
+Press “Eject” to Card Ejecting to Card “side eject” module
+Press “XH-XE” to calcolate X axis total steps between XHome and XEnd carriage
+sensors
+
+Machine “off-line” Emboss Testing
+o
+o
+o
+o
+o
+
+From “off-line” Emboss Testing sector, define card layout for testing purpose.
+“SY” 540 mm and “SX” 860 mm are references for standard metal tag.
+“X” and “Y“ ais the coordinate for embossing field defined
+“(F) Font” font type defined
+“CI” Character per inch.
+
+o
+
+Press “EMBOSS” to emboss card layout line by line defined.
+Please note: before to run Emboss card lauoyt, card Loading first.
+After that Card Ejecting.
+
+C330 Setup Guide
+
+Rev. 1.0
+
+Page 8/22
+
+o
+o
+
+Press ”save text” to save defined card layout (xml format).
+Press ”load text” to load card layout (xml format).
+
+Machine Testing
+From “Test” sector,
+Set “n.card” How many cards to run.
+Set “delay” (ms) to set dalay between cards.
+Flag “Emboss” to run emboss card layout, otherwise run card feeding and ejecting
+only
+Press “start” to run machine testing
+Press “Id unl” to card ejecting to Card “Side Eject”
+“cover” – “Pause” – “Step” NOT USED,
+
+Machine communication (It’s used for debag purpose)
+From bottom side of C330 Setup application, there is a area for machine communication shown during each
+executed machine command.
+
+C330 Setup Guide
+
+Rev. 1.0
+
+Page 9/22
+
+Paragraph 3 – Setup
+Set Password to get technical Level access on machine parameters.
+-
+
+Level 2 set “tech2” for all machine parameters view and set adjustments.
+
+Machine Paramaters
+
+Press “GET” to machine paramters READING from Machine board
+Press “SET” to machine parameters WRITING to machine board.
+
+C330 Setup Guide
+
+Rev. 1.0
+
+Page 10/22
+
+[1 – Embosser Configuration]
+
+The parameters in the Embosser Configuration are:
+Machine Model - C330 mode Factory defined
+Machine Serial Number – SN Factory defined
+Type of embossing
+o STANDARD – to set standard emboss fonts
+o REVERSED – to set revered emboss fonts
+Coodinate Value sets the measure unit; the options are: tenth of millimeters hundreds of inches,
+thousands of inches or steps.
+mm/10 is sets as default.
+Feeder type - the options are Step or DC Motor.
+Unload type - the options are FIFO or Eject.
+
+C330 Setup Guide
+
+Rev. 1.0
+
+Page 11/22
+
+[2 – Mechanical Parameters]
+
+The parameters in the Mechanical Parameters are:
+Drum HOME: adjust the home position of the drum.
+X-Start Emboss: sets the emboss X- axis offset in order to align the format
+coordinates with the embossed characters positions.
+Y-Start Emboss: sets the emboss Y- axis offset in order to align the format
+coordinates with the embossed characters positions.
+X-Home: sets the X-axis waiting plate position.
+X-End: sets the position where is checked if the X-axis embossing movement has been correct.
+Y-Home: sets the Y-axis waiting plate position.
+X-Load: sets the X-axis position to grip the metal plate; the machine will first move the Y-axis to load the
+metal plate and then the X-axis to close the clamp.
+Y-Load: sets the Y-axis position to grip the metal plate; it’s very important to have the metal plate fully
+inside the clamp.
+
+C330 Setup Guide
+
+Rev. 1.0
+
+Page 12/22
+
+X-Unload: sets the X-axis position to release the metal plate.
+Y-Unload: sets the Y-axis position to release the metal plate.
+X Drum Entry: sets the X-axis position where the metal plate will go inside the drum area to ensure an
+easier metal plate enter.
+Y Drum Entry: sets the Y-axis position where the metal plate will go inside the drum area to ensure an
+easier metal plate enter.
+X Card size (mm): sets card size value on X Axis
+Y Card size (mm): sets card size value on Y Axis
+Unload Time out (ms): sets the maximum time to eject a metal tag before generating an error.
+Clamp – Y safe zone: set Y steps not used in the clamp to avoid punch the clamp base.
+Feeder Offset +CARD IN: sets how much the Loader has to move out in order to load the plate in the
+Clamp.
+Feeder Offset -CARD IN: set how much the Loader has to come back after the Clamp has taken the plate.
+
+[3 – X Axis]
+
+The parameters in the X axis are:
+X Motor RESTORE Speed (Hz): sets the restore movement of the X-axis motor; increasing the value
+increases the restore speed.
+X Motor Accel: sets the number of steps needed by the X-axis motor for its acceleration ramp.
+X Motor Max Speed (Hz): sets the top speed limit of the X-axis motor; increasing the value increases the
+limit.
+
+C330 Setup Guide
+
+Rev. 1.0
+
+Page 13/22
+
+[4 – Y Axis]
+
+The parameters in the Y axis are:
+Y Motor RESTORE Speed (Hz): sets the restore movement of the Y-axis motor; increasing the value
+increases the restore speed.
+Y Motor Accel: sets the number of steps needed by the Y-axis motor for its acceleration ramp.
+Y Motor Max Speed (Hz): sets the top speed limit of the Y-axis motor; increasing the value increases the
+limit.
+
+[5 – Drum Axis]
+
+The parameters in the Drum axis are:
+Drum Motor RESTORE Speed (Hz): sets the restore movement of the Drum -axis motor; increasing the
+value increases the restore speed.
+Drum Motor Accel: sets the number of steps needed by the Drum -axis motor for its acceleration ramp.
+Drum Motor Max Speed (Hz): sets the top speed limit of the Drum -axis motor; increasing the value
+increases the limit.
+Type of Optimization sets embossing optimization mode:
+Drum
+– embossing by chars order defined in drum layout
+Row
+– for test purpose only
+Sequential
+– for test purpose only
+
+C330 Setup Guide
+
+Rev. 1.0
+
+Page 14/22
+
+[6– Feeder Axis]
+
+The parameters in the feeder axis are:
+Feeder Motor RESTORE Speed (Hz): sets the restore movement of the feeder-axis motor; increasing the
+value increases the restore speed.
+Feeder Motor Accel: sets the number of steps needed by the feeder-axis motor for its acceleration ramp.
+Feeder Motor Max Speed (Hz): sets the top speed limit of the feeder-axis motor; increasing the value
+increases the limit.
+
+[7– Punch Axis]
+
+The parameters in the Punch axis are:
+Delay Before Punch: delay time before a completing embossed metal tag,
+Delay After Punch: delay time after a completing embossed metal tag.
+
+C330 Setup Guide
+
+Rev. 1.0
+
+Page 15/22
+
+[8– Protocol]
+
+The parameters in the Protocol are:
+Protocol: the options are: XONXOFF, Chip, L2, US Open, SEP, ##, Euro1.
+Buffer Mode:
+• Single if check marked, avoiding the loading of another plate while the working cycle of the already
+loaded one has not been completed yet.
+•
+
+Multiple if check marked, allows the loading of another plate while the
+working cycle of the already loaded one has not been completed yet.
+
+On-Line Format: sets the format to use on-line with a PC between the ones stored into the machine.
+The ASCII character of each following data opener, data closer, field separator or other parameter is shown
+aside the related box.
+The parameters in the Protocol Characters area are related to the XOn/XOff protocol and are disabled:
+•
+•
+•
+
+Value of STX: sets the ASCII value of the protocol data opener character.
+Value of ETX: sets the ASCII value of the protocol data closer character.
+Value of fields separator:sets the ASCII value of the protocol fields separator character.
+
+C330 Setup Guide
+
+Rev. 1.0
+
+Page 16/22
+
+The parameters in the US Open Protocol Chars area are disabled:
+•
+
+Value of US Open: sets the ASCII value of the code character in the US Open protocol.
+
+•
+
+Value of OCR Start: sets the ASCII value of the OCR data opener character in the US Open
+protocol.
+
+•
+
+Value of OCR End: sets the ASCII value of the OCR data closer character in the US Open protocol.
+
+Address chip protocol: 31 is Factory value set.
+Length Error message: set a value to defined error message length.
+
+Ignore Overflow Characters: if check marked, cut an overflow characters field instead of sending an error.
+Illegal Char = Space: if check marked, convert an illegal character in a space instead of sending an error.
+
+[9 – Serial Port]
+
+The parameters in the Serial Port are:
+Baudrate: sets the protocol communication speed.
+Data Bits + Parity: sets the protocol communication data bits and parity
+
+C330 Setup Guide
+
+Rev. 1.0
+
+Page 17/22
+
+[10 – Module Test]
+
+The parameters in the Module Test are:
+Disable Card Presence: if flagged, the card presence sensor is disable during card production,
+Disable X Module: if flagged, the x axis Carriage is disabled.
+Disable Y Module: if flagged, the Y axis Carriage is disabled.
+Disable Drum Module: if flagged, the Drum is disabled.
+Disable Punch Cycle: if flagged, the Emboss Punch cycle is disabled.
+Disable Feeder Cycle: if flagged, the Feeder cycle is disabled.
+
+Load /Save machine Setup
+
+Load setup: to load machine configuration from xml file stored in the host PC.
+Save setup: to save machine configuration to xml file in the host PC.
+
+C330 Setup Guide
+
+Rev. 1.0
+
+Page 18/22
+
+Drum Layout
+
+Position #:
+Character #:
+Hex value #:
+Dec Value #:
+
+character drum slot positioning.
+character shown according with Decimal Value based on ASCII code.
+character Hexadecimal Value
+set Character decimal value based on ASCII code.
+
+Drum Layout: set drum configuration according with physical drum Layout matching each character by
+Drum slot positioning.
+
+Font type: set font type (Emboss, Front Inf and Rear Inf) according with font sets physically installed in the
+Drum slots.
+Each Font Set is defined by color in the drum Layout.
+
+C330 Setup Guide
+
+Rev. 1.0
+
+Page 19/22
+
+Paragraph 4 – HW Test
+Stepper Motors
+
+X axis : X stepper motor testing CW / CCW
+Y Axis: Y stepper motor testing CW / CCW
+Z (Drum) axis: drum stepper motor testing CW / CCW
+F (Feeder): Feeder stepper motor testing CW / CCW
+
+Nr. Step: set umber of Stepper motor steps for motors testing by selected motor axis Restore Speed
+Ramp: if flagged, the stepper motor includes acceleration by selected motor axis Max Speed.
+
+DC Motor
+
+CN 34: Card Side Eject motor testing FW (Forward) / RV (Reverse), press “STOP” button for motor
+stopping
+CN 35: NOT USED
+CN 36: NOT USED
+CN 37: NOT USED
+CN 38: NOT USED
+CN 26: Punch motor testing FW (Forward) / RV (Reverse), press “STOP” button for motor stopping
+
+C330 Setup Guide
+
+Rev. 1.0
+
+Page 20/22
+
+Solenoids
+
+CN 39: NOT USED
+CN 40: NOT USED
+CN 41: NOT USED
+CN 42: NOT USED
+
+Sensors
+Press ”READ” button to start to sensor reading in real time.
+“
+“
+
+” Green is sensor free status
+” Red is sensor busy status
+
+[A] “AB X”
+[B] “AB Y”
+[C] “AB Z“
+[D] ” X TO”
+[E] “TIME PUNCH”
+[F] NOT USED
+[G] NOT USED
+
+C330 Setup Guide
+
+X axis total steps
+Y axis total steps
+Drum axis total steps
+X total steps calculated between X Home and X E End carriage
+sensors (calculated value after “XH-XE” command).
+Punch cycle timing
+
+Rev. 1.0
+
+Page 21/22
+
+Modules - Punch
+
+Punch: to single puch cycle CW/CCW testing.
+
+C330 Setup Guide
+
+Rev. 1.0
+
+Page 22/22
+
+

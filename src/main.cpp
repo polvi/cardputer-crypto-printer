@@ -190,56 +190,37 @@ static void usb_host_task(void *arg) {
     }
 }
 
-// Low-level write to the C330. Flow control is now done by the FTDI CHIP itself
-// (hardware Xon/Xoff enabled at connect), exactly like CUPS's flow=soft path: the
-// chip halts its own TX the instant the printer asserts XOFF, so we cannot overrun
-// the printer's field buffer no matter how fast we feed it. Back-pressure surfaces
-// naturally -- when the chip is paused (XOFF) its TX FIFO fills and tx_blocking
-// blocks until the chip drains -- so we give it a long timeout to ride out a full
-// card's emboss. The software g_cts gate is kept only as an inert fallback (if the
-// chip flow control were not active, the printer's XOFF would still reach us).
-// Returns ESP_OK on success.
+// Low-level write to the C330. CRITICAL: we must NOT retry a timed-out chunk.
+// cdc_acm tx_blocking, on timeout, calls cdc_acm_reset_transfer_endpoint() which
+// *completes the in-flight transfer* (the bytes are delivered), so resending the
+// same chunk DUPLICATES those bytes and corrupts the stream -> the printer parses a
+// malformed field and throws E37. (Proven: the identical byte stream prints all
+// cards from a PC; only our retrying transmitter failed.) So we issue ONE
+// tx_blocking per chunk with a long timeout and let it block through any printer
+// XOFF (the FTDI chip's hardware Xon/Xoff, enabled at connect, pauses the chip's
+// TX while the printer embosses; tx_blocking simply waits on the full FIFO).
+// Status is drawn ONCE per card, not per chunk -- per-chunk drawing slowed the
+// stream enough that the printer began embossing mid-send. Returns ESP_OK on success.
 static esp_err_t c330_write_raw(const char *data, size_t len) {
     static constexpr size_t kChunk = 16;
     xSemaphoreTake(g_vcp_mutex, portMAX_DELAY);
     esp_err_t err = g_vcp ? ESP_OK : ESP_ERR_INVALID_STATE;
-    auto &d = M5Cardputer.Display;
-    d.setTextSize(1);
+    if (err == ESP_OK) {
+        auto &d = M5Cardputer.Display;
+        d.fillRect(0, 0, 240, 9, TFT_BLACK);
+        d.setTextSize(1);
+        d.setTextColor(TFT_GREEN, TFT_BLACK);
+        d.setCursor(2, 1);
+        char b[48];
+        snprintf(b, sizeof(b), "card #%u  %u bytes", (unsigned)g_card_idx, (unsigned)len);
+        d.print(b);
+    }
     for (size_t off = 0; off < len && err == ESP_OK; off += kChunk) {
         size_t n = (len - off < kChunk) ? (len - off) : kChunk;
-
-        // The FTDI chip does the Xon/Xoff now: while the printer holds XOFF (busy
-        // embossing) the chip's FIFO fills and tx_blocking times out. That is NOT a
-        // failure -- it is the printer pacing us, possibly for a whole card's emboss
-        // (~55s) or a backlog of several. So retry until the chip accepts the bytes
-        // or the device unplugs. A 16-byte chunk is a single USB packet, so a timed-
-        // out chunk transferred nothing (NAK'd) -> resending is safe, no dup bytes.
-        for (uint32_t waits = 0;; ++waits) {
-            if (!g_ready) { err = ESP_ERR_INVALID_STATE; break; }
-            err = g_vcp->tx_blocking(
-                reinterpret_cast<uint8_t *>(const_cast<char *>(data + off)), n, 2000);
-            if (err != ESP_ERR_TIMEOUT) break; // accepted, or a genuine error
-            // still waiting on the printer; show we're alive, not hung
-            d.fillRect(0, 0, 240, 9, TFT_BLACK);
-            d.setTextColor(TFT_YELLOW, TFT_BLACK);
-            d.setCursor(2, 1);
-            char w[64];
-            snprintf(w, sizeof(w), "#%u TX%u/%u EMBOSSING %us", (unsigned)g_card_idx,
-                     (unsigned)off, (unsigned)len, (unsigned)(waits * 2));
-            d.print(w);
-        }
-
-        // (debug) live readout. With chip Xon/Xoff working, XF/XN stay 0 (the chip
-        // consumes the printer's flow bytes) and the print still completes -- that is
-        // the success signature. If XF climbs, the chip is NOT doing flow control.
-        d.fillRect(0, 0, 240, 9, TFT_BLACK);
-        d.setTextColor(g_cts ? TFT_GREEN : TFT_RED, TFT_BLACK);
-        d.setCursor(2, 1);
-        char b[64];
-        snprintf(b, sizeof(b), "#%u TX%u/%u RX%u XF%u XN%u C%d", (unsigned)g_card_idx,
-                 (unsigned)(off + n), (unsigned)len, (unsigned)g_rx_total,
-                 (unsigned)g_xoff_total, (unsigned)g_xon_total, (int)g_cts);
-        d.print(b);
+        // 300s: ride out a full card's emboss XOFF without ever timing out (a
+        // timeout would reset the endpoint and duplicate bytes -- see above).
+        err = g_vcp->tx_blocking(
+            reinterpret_cast<uint8_t *>(const_cast<char *>(data + off)), n, 300000);
     }
     xSemaphoreGive(g_vcp_mutex);
     return err;
