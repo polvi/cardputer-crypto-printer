@@ -84,12 +84,12 @@ std::string plate_xmr_address(const std::string &addr, const std::string &header
                               const std::string &message, const std::string &date);
 
 // --- Generic labeled 12-word BIP39 seed (no derived addresses) ---
-// F3 words 1-12, two per line — the same row format as the BTC+ETH mnemonic
-// plates, just 128-bit entropy instead of 256.
+// F3 words plate: nothing but the 12 numbered words, two per line — the same
+// row format as the BTC+ETH mnemonic plates, just 128-bit entropy.
 std::string plate_seed_words(const std::array<std::string, 12> &words);
 
-// F0 label plate (sent last, so it stacks on top of the words): the optional
-// label, "12 WORD BIP39 SEED", and "MINTED ON <date>".
+// F0 label plate (sent last, so it stacks on top of the words plate): the
+// optional label, "12 WORD BIP39 SEED", and "MINTED ON <date>".
 std::string plate_seed_info(const std::string &label, const std::string &date);
 
 // --- Custom: a few free-form lines on a single card ---

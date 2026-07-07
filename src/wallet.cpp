@@ -132,9 +132,10 @@ bool print_xmr(const std::string &label, SendFn sink, WalletPublic &out) {
     return ok;
 }
 
-// Generic labeled 12-word BIP39 seed: words plate, then the label/info plate
-// (sent last so it stacks on top). No derived addresses -- out_public stays
-// empty and the Result screen shows a plain confirmation.
+// Generic labeled 12-word BIP39 seed: the words alone on one plate, then the
+// label/info plate (sent last so it stacks on top and covers the words). No
+// derived addresses -- out_public stays empty and the Result screen shows a
+// plain confirmation.
 bool print_seed12(const std::string &label, SendFn sink) {
     std::array<std::string, 12> words;
     if (!wallet_generate_seed12(words)) return false;
