@@ -9,7 +9,7 @@
 //
 // Media / font the layout numbers are sized for:
 //   - Font: the C330's Simplex 2 emboss drum, 3 mm character height.
-//   - Plate: CR-80 metal plate, 3.375" x 2.215" x 0.015", 304 bright-annealed
+//   - Plate: CR-80 metal plate, 3.375" x 2.125" x 0.015", 304 bright-annealed
 //     stainless steel, with (4) 0.156" holes (for bolting a stack together,
 //     e.g. cover plates over a seed-words plate).
 //   - Layout units are ~0.1 mm: SY540 spans the plate's short side; rows sit

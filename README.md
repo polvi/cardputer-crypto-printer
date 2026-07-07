@@ -11,7 +11,7 @@ USB host/OTG cable, no PC in the loop.
 > Status: working end-to-end on hardware. **Real on-device key generation** for
 > BTC+ETH and XMR (verified natively against `docs/keyprint.go` and BIP39 test
 > vectors), the **C330 printer link** (FTDI USB-host, 9600 8N1, hardware Xon/Xoff),
-> and three print modes (BTC+ETH, XMR, Custom). See "Key-generation status" and
+> and four print modes (BTC+ETH, XMR, Seed, Custom). See "Key-generation status" and
 > "First run" below.
 
 **Air-gapped by design.** The only thing this firmware ever drives is USB-serial
@@ -78,7 +78,7 @@ position (`mx_message` in `c330_format.cpp`).
 ### Plates & font (media spec)
 
 - **Font**: the C330's **Simplex 2** emboss drum, **3 mm** character height.
-- **Plates**: CR-80 metal plates, **3.375" × 2.215" × 0.015"**, **304
+- **Plates**: CR-80 metal plates, **3.375" × 2.125" × 0.015"**, **304
   bright-annealed stainless steel**, with **(4) 0.156" holes** — the holes let a
   printed stack be bolted together (e.g. cover plates over a seed-words plate).
   Produced with non-domestic material.
