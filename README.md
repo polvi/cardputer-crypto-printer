@@ -26,8 +26,9 @@ cannot be brought up at all — critical for a device that handles key material.
 A screen state machine (`src/ui.cpp`), hardware-independent so it runs on both
 the device and the desktop simulator:
 
-1. **Select** — pick with a number key: `1` BTC+ETH, `2` XMR, `3` **Custom**
-   (a few free-form lines on one card). (Solo BTC/ETH are hidden.) The top-right
+1. **Select** — pick with a number key: `1` BTC+ETH, `2` XMR, `3` **Seed**
+   (a generic labeled 12-word BIP39 mnemonic), `4` **Custom** (a few free-form
+   lines on one card). (Solo BTC/ETH are hidden.) The top-right
    chrome shows a **battery gauge** (a charging bolt when on power) and a
    **printer-connection dot** (green = the C330's FTDI port is enumerated).
 2. **Label** — optionally type a label (max 24 chars), editable with the arrow
@@ -52,6 +53,13 @@ format/order of the reference tool `docs/keyprint.go` (verified against it):
   restore; polyseed isn't supported by the GUI yet): info `]F0` ("POLVI HD WALLET /
   MONERO / 25 WORD MNEMONIC SEED / ACCOUNT NUMBER 0") → words 21-25 → 11-20 → 1-10
   (`]F1`) → monero address `]F3` (95 chars split across four hyphenated lines).
+- **Seed** (generic labeled **12-word BIP39** mnemonic — key material only, no
+  derived addresses, so Result shows "CARD PRINTED" instead of QR codes): words
+  plate `]F3` (nothing but the 12 numbered words, two per line) → label plate
+  `]F0` (label / "12 WORD BIP39 SEED" / "MINTED ON <date>"), sent last so it
+  stacks on top and covers the words. On the device the words come from 128-bit
+  SAR-ADC entropy (`mnemonic_from_data`); the sim prints the canonical
+  `abandon…about` test vector.
 - **Custom**: an `]F0` plate with up to **4 free-form lines** (≤26 chars each),
   folded to uppercase and restricted to the C330 charset. No crypto, no QR — the
   editor is a small multi-line text field (Enter = new line). G0/⌘+Enter goes to a
@@ -66,6 +74,17 @@ air-gapped device).
 The C330 drum is uppercase-only (≤26 chars/line); mixed-case addresses are
 embossed by stacking two rows 7 units apart, so case is recovered by vertical
 position (`mx_message` in `c330_format.cpp`).
+
+### Plates & font (media spec)
+
+- **Font**: the C330's **Simplex 2** emboss drum, **3 mm** character height.
+- **Plates**: CR-80 metal plates, **3.375" × 2.215" × 0.015"**, **304
+  bright-annealed stainless steel**, with **(4) 0.156" holes** — the holes let a
+  printed stack be bolted together (e.g. cover plates over a seed-words plate).
+  Produced with non-domestic material.
+- **Layout units ≈ 0.1 mm**: the `SY540` print area spans the plate's short
+  side; text rows sit at `Y050`–`Y425` in steps of 75 (7.5 mm row pitch for the
+  3 mm glyphs), and the mixed-case stack offset of 7 units is 0.7 mm.
 
 ### Security seam (`src/wallet.h` / `wallet.cpp`)
 
@@ -187,7 +206,7 @@ Walk the whole flow in the window:
 
 | Key (sim) | Action |
 | --- | --- |
-| `1`–`3` | choose BTC+ETH / XMR / Custom |
+| `1`–`4` | choose BTC+ETH / XMR / Seed / Custom |
 | typing | edit text — folded to uppercase, restricted to the C330 charset (incl. Space) |
 | **⌥ + `;,./`** or desktop arrows | move the caret |
 | **Enter** | Label → Confirm; on **Custom**, insert a new line |

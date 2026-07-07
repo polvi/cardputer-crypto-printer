@@ -7,6 +7,15 @@
 // a row 7 units below, both embossed with the uppercase drum so case is recovered
 // by vertical position.
 //
+// Media / font the layout numbers are sized for:
+//   - Font: the C330's Simplex 2 emboss drum, 3 mm character height.
+//   - Plate: CR-80 metal plate, 3.375" x 2.215" x 0.015", 304 bright-annealed
+//     stainless steel, with (4) 0.156" holes (for bolting a stack together,
+//     e.g. cover plates over a seed-words plate).
+//   - Layout units are ~0.1 mm: SY540 spans the plate's short side; rows sit
+//     at Y050..Y425 in steps of 75 (7.5 mm pitch for the 3 mm glyphs), and the
+//     mixed-case stack offset of 7 units is 0.7 mm.
+//
 // Pure string logic (no Arduino/SDL/crypto) so it builds and is testable on both
 // the device and the simulator.
 #pragma once
