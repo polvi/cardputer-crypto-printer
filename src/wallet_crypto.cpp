@@ -122,6 +122,27 @@ bool wallet_generate(std::array<std::string, 24> &words, std::string &btc, std::
     return true;
 }
 
+// Generic 12-word BIP39 seed: 128-bit entropy -> 12 words. Key material only;
+// nothing is derived from it here.
+bool wallet_generate_seed12(std::array<std::string, 12> &words) {
+    uint8_t entropy[16];
+    get_entropy(entropy, 16);
+    const char *mn = mnemonic_from_data(entropy, 16); // 128-bit -> 12 words (static buf)
+    memzero(entropy, sizeof(entropy));
+    if (!mn) return false;
+
+    for (int wi = 0; wi < 12; ++wi) words[wi].clear();
+    int wi = 0;
+    for (const char *p = mn; *p && wi < 12;) {
+        const char *sp = strchr(p, ' ');
+        size_t len = sp ? size_t(sp - p) : strlen(p);
+        words[wi++].assign(p, len);
+        p = sp ? sp + 1 : p + len;
+    }
+    mnemonic_clear(); // wipe trezor's static mnemonic buffer
+    return true;
+}
+
 // ---- XMR: legacy 25-word Monero seed -> Monero address ----------------------
 // The 25-word seed encodes the (reduced) secret spend key directly: 32 bytes ->
 // 24 words (4 bytes -> 3 words) + 1 checksum word. Matches docs/keyprint.go's

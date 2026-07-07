@@ -12,7 +12,11 @@
 
 // Map the UI wallet type to the C330 format module's kind.
 static c330::WalletKind kind_of(WalletType w) {
-    return w == WalletType::XMR ? c330::WalletKind::Xmr : c330::WalletKind::BtcEth;
+    switch (w) {
+        case WalletType::XMR:    return c330::WalletKind::Xmr;
+        case WalletType::SEED12: return c330::WalletKind::Seed;
+        default:                 return c330::WalletKind::BtcEth;
+    }
 }
 
 // ============================================================================
@@ -24,6 +28,7 @@ const char *wallet_name(WalletType w) {
         case WalletType::ETH:     return "ETH";
         case WalletType::BTC_ETH: return "BTC+ETH";
         case WalletType::XMR:     return "XMR";
+        case WalletType::SEED12:  return "Seed";
         case WalletType::CUSTOM:  return "Custom";
     }
     return "?";
@@ -34,7 +39,7 @@ const char *wallet_name(WalletType w) {
 // ============================================================================
 void ui_init(UiState &s, SendFn send, const char *status) {
     s.send      = send;
-    s.status    = status ? status : "Press 1-3 to choose";
+    s.status    = status ? status : "Press 1-4 to choose";
     s.buffer.clear();
     s.cursor    = 0;
     s.connected = false;
@@ -68,7 +73,8 @@ static bool handle_select(UiState &s, const InputEvent &ev) {
     switch (ev.ch) {
         case '1': s.wallet = WalletType::BTC_ETH; break;
         case '2': s.wallet = WalletType::XMR;     break;
-        case '3': // Custom: a few free-form lines, printed in N copies.
+        case '3': s.wallet = WalletType::SEED12;  break; // generic 12-word BIP39 seed
+        case '4': // Custom: a few free-form lines, printed in N copies.
             s.wallet = WalletType::CUSTOM;
             s.screen = Screen::Custom;
             s.copies = 1;
@@ -129,7 +135,7 @@ static bool handle_label(UiState &s, const InputEvent &ev) {
             s.screen = Screen::Select;
             s.buffer.clear();
             s.cursor = 0;
-            s.status = "Press 1-3 to choose";
+            s.status = "Press 1-4 to choose";
             return true;
 
         default:
@@ -215,7 +221,7 @@ static bool handle_custom(UiState &s, const InputEvent &ev) {
             s.buffer.clear();
             s.cursor = 0;
             s.screen = Screen::Select;
-            s.status = "Press 1-3 to choose";
+            s.status = "Press 1-4 to choose";
             return true;
         default:
             return false;
@@ -288,7 +294,7 @@ static bool handle_result(UiState &s, const InputEvent &ev) {
     s.buffer.clear();
     s.cursor = 0;
     s.screen = Screen::Select;
-    s.status = "Press 1-3 to choose";
+    s.status = "Press 1-4 to choose";
     return true;
 }
 
@@ -345,10 +351,10 @@ static void render_select(lgfx::LGFX_Device &d, const UiState &) {
     d.setCursor(4, 4);
     d.print("Crypto Wallet");
 
-    static const char *opts[3] = {"1 BTC+ETH", "2 XMR", "3 Custom"};
+    static const char *opts[4] = {"1 BTC+ETH", "2 XMR", "3 Seed", "4 Custom"};
     d.setTextSize(2);
     d.setTextColor(TFT_WHITE, TFT_BLACK);
-    for (int i = 0; i < 3; ++i) {
+    for (int i = 0; i < 4; ++i) {
         d.setCursor(8, 24 + i * 20);
         d.print(opts[i]);
     }

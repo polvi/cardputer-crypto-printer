@@ -47,10 +47,11 @@ using SendFn = bool (*)(const char *data, unsigned len);
 enum class Screen { Select, Label, Confirm, Custom, Copies, Printing, Result };
 
 // CUSTOM (free-form text) isn't a wallet — it routes to custom_print, never to
-// wallet_print.
-enum class WalletType { BTC, ETH, BTC_ETH, XMR, CUSTOM };
+// wallet_print. SEED12 is a generic labeled 12-word BIP39 seed: key material
+// only, no derived addresses (Result shows a plain confirmation, no QR).
+enum class WalletType { BTC, ETH, BTC_ETH, XMR, SEED12, CUSTOM };
 
-// Human-readable name ("BTC", "ETH", "BTC+ETH", "XMR", "Custom").
+// Human-readable name ("BTC", "ETH", "BTC+ETH", "XMR", "Seed", "Custom").
 const char *wallet_name(WalletType w);
 
 // Max characters for the optional label.

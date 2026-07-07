@@ -19,7 +19,7 @@ namespace c330 {
 
 // Which wallet a plate/info page is for. Kept M5GFX-free (not ui.h's WalletType)
 // so this module stays standalone-testable; the callers map WalletType -> kind.
-enum class WalletKind { BtcEth, Xmr };
+enum class WalletKind { BtcEth, Xmr, Seed };
 
 // The C330 drum character set (uppercase only) and the per-line limit.
 extern const char *kCharSet; // "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-/.',& "
@@ -82,6 +82,15 @@ std::string plate_xmr_words_21_25(const std::array<std::string, 25> &words);  //
 // split across four stacked, hyphen-joined lines (keyprint.go PKey_Print_Template).
 std::string plate_xmr_address(const std::string &addr, const std::string &header,
                               const std::string &message, const std::string &date);
+
+// --- Generic labeled 12-word BIP39 seed (no derived addresses) ---
+// F3 words 1-12, two per line — the same row format as the BTC+ETH mnemonic
+// plates, just 128-bit entropy instead of 256.
+std::string plate_seed_words(const std::array<std::string, 12> &words);
+
+// F0 label plate (sent last, so it stacks on top of the words): the optional
+// label, "12 WORD BIP39 SEED", and "MINTED ON <date>".
+std::string plate_seed_info(const std::string &label, const std::string &date);
 
 // --- Custom: a few free-form lines on a single card ---
 // F0 plate, one row per line (Y050 step 75). `lines` should already be uppercase

@@ -124,6 +124,8 @@ std::string word_plate_single(char fmt, const std::string *w, int start, int cou
 std::vector<std::string> wallet_info_lines(WalletKind k) {
     if (k == WalletKind::Xmr)
         return {"MONERO", "25 WORD MNEMONIC SEED", "ACCOUNT NUMBER 0"};
+    if (k == WalletKind::Seed)
+        return {"12 WORD BIP39 MNEMONIC", "GENERIC KEY MATERIAL"};
     return {"24 WORD BIP32 MNEMONIC", "BTC BIP84 PATH", "M/84'/0'/0'/0/0",
             "ETH BIP44 PATH", "M/44'/60'/0'/0/0"};
 }
@@ -216,6 +218,18 @@ std::string plate_xmr_address(const std::string &addr, const std::string &header
         if (i + 1 < raw.size()) { layout += "\n"; text += "\n"; }
     }
     return to_upper("\n<]F3 SY540SX860\n" + layout + ">\n\n<" + text + ">\n");
+}
+
+std::string plate_seed_words(const std::array<std::string, 12> &words) {
+    return word_plate('3', words.data(), 0, 12, 11);
+}
+
+std::string plate_seed_info(const std::string &label, const std::string &date) {
+    std::vector<std::string> lines;
+    if (!label.empty()) lines.push_back(label);
+    lines.push_back("12 WORD BIP39 SEED");
+    lines.push_back("MINTED ON " + date);
+    return plate_custom(lines);
 }
 
 std::string plate_custom(const std::vector<std::string> &lines) {

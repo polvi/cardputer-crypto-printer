@@ -11,6 +11,7 @@
 // defined in the device-only path.
 bool wallet_generate(std::array<std::string, 24> &words, std::string &btc, std::string &eth);
 bool wallet_generate_xmr(std::array<std::string, 25> &words, std::string &addr);
+bool wallet_generate_seed12(std::array<std::string, 12> &words);
 #endif
 
 namespace {
@@ -71,6 +72,13 @@ bool wallet_generate_xmr(std::array<std::string, 25> &words, std::string &addr) 
     addr = "4B3ut4pQGkxcUW41Qz3Fd3T6PnNY8JP5y7Re14xJR71CJj3W7SrZvCdDn9X981h8g1GdaRdvaj5Tv4JbTVvrmhXP8XTWijA";
     return true;
 }
+
+bool wallet_generate_seed12(std::array<std::string, 12> &words) {
+    // BIP39 128-bit all-zero test mnemonic.
+    for (int i = 0; i < 11; ++i) words[i] = "abandon";
+    words[11] = "about";
+    return true;
+}
 #endif
 
 // Stream every plate via the sink, then zeroize all plate buffers (the mnemonic
@@ -124,12 +132,28 @@ bool print_xmr(const std::string &label, SendFn sink, WalletPublic &out) {
     return ok;
 }
 
+// Generic labeled 12-word BIP39 seed: words plate, then the label/info plate
+// (sent last so it stacks on top). No derived addresses -- out_public stays
+// empty and the Result screen shows a plain confirmation.
+bool print_seed12(const std::string &label, SendFn sink) {
+    std::array<std::string, 12> words;
+    if (!wallet_generate_seed12(words)) return false;
+    std::vector<std::string> plates = {
+        c330::plate_seed_words(words),
+        c330::plate_seed_info(label, kMintDate),
+    };
+    bool ok = send_plates(plates, sink);
+    for (auto &w : words) secure_zero(w);
+    return ok;
+}
+
 } // namespace
 
 bool wallet_print(WalletType type, const std::string &label,
                   SendFn sink, WalletPublic &out_public) {
     out_public.keys.clear();
-    if (type == WalletType::XMR) return print_xmr(label, sink, out_public);
+    if (type == WalletType::XMR)    return print_xmr(label, sink, out_public);
+    if (type == WalletType::SEED12) return print_seed12(label, sink);
     return print_btceth(label, sink, out_public); // BTC_ETH (and BTC/ETH) for now
 }
 
